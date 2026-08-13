@@ -20,7 +20,7 @@ Abre `http://localhost:3000` y pega tu `USER_TOKEN` en el dashboard.
 ### Variables de entorno
 | Variable | Descripción |
 | --- | --- |
-| `PORT` | Puerto del servidor (bot-hosting lo define automáticamente) |
+| `SERVER_PORT` | Puerto del servidor (prioridad; bot-hosting lo asigna aquí). Respaldo: `PORT` y luego `3000` |
 | `USER_TOKEN` | Token de tu cuenta de Discord (alternativa al campo del dashboard) |
 
 ## Despliegue en bot-hosting (import por GitHub)

@@ -35,7 +35,7 @@ import { fileURLToPath } from 'node:url';
 import { Client, RichPresence, CustomStatus, Intents, Constants } from 'discord.js-selfbot-v13';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.SERVER_PORT) || Number(process.env.PORT) || 3000;
 
 const app = express();
 /* Cloud-ready: confía en el proxy inverso (Heroku/Render/Railway) para
