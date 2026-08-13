@@ -1,0 +1,19 @@
+# Dependencias
+node_modules/
+
+# Token y configuración local (contiene el USER_TOKEN de Discord)
+data/settings.json
+.env
+*.env
+
+# Imágenes subidas en runtime
+public/uploads/
+
+# Logs y SO
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

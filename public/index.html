@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRESENCE·OS — Rich Presence Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   PRESENCE·OS v2 — Glassmorphism
+   ============================================================ */
+:root{
+  --accent:#00ffff;
+  --accent-2:#bb86fc;
+  --bg:#0a0a12;
+  --text:#f4f4f8;
+  --text-2:#a6a6bd;
+  --text-3:#6b6b82;
+  --glass:rgba(255,255,255,.05);
+  --stroke:rgba(255,255,255,.12);
+  --stroke-acc:rgba(0,255,255,.5);
+  --danger:#ff5470;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{color-scheme:dark}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  color:var(--text);
+  min-height:100vh;
+  background:
+    radial-gradient(1100px 700px at 12% -8%, rgba(0,255,255,.10), transparent 60%),
+    radial-gradient(900px 650px at 96% 2%, rgba(187,134,252,.10), transparent 60%),
+    linear-gradient(160deg,#0b0b14,#08080f 60%,#0a0a13);
+  overflow-x:hidden;
+  font-size:14px;line-height:1.5;
+}
+::selection{background:rgba(0,255,255,.25);color:#fff}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:8px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.24)}
+
+/* ---------- Fondo decorativo (nunca bloquea el puntero) ---------- */
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.38;animation:drift 20s ease-in-out infinite;pointer-events:none}
+.blob-1{width:420px;height:420px;background:rgba(0,255,255,.35);top:-140px;left:-100px}
+.blob-2{width:380px;height:380px;background:rgba(187,134,252,.35);top:28%;right:-120px;animation-delay:-7s}
+.blob-3{width:300px;height:300px;background:rgba(0,150,255,.28);bottom:-110px;left:42%;animation-delay:-13s}
+@keyframes drift{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(45px,-35px) scale(1.12)}}
+.grid-overlay{
+  position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);
+  background-size:44px 44px;
+  -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,#000 20%,transparent 80%);
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,#000 20%,transparent 80%);
+}
+
+/* ---------- Glass ---------- */
+.glass{
+  position:relative;
+  background:var(--glass);
+  -webkit-backdrop-filter:blur(22px) saturate(150%);
+  backdrop-filter:blur(22px) saturate(150%);
+  border:1px solid var(--stroke);
+  border-radius:22px;
+  box-shadow:0 24px 60px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+/* ---------- Header ---------- */
+.topbar{
+  position:relative;z-index:1;
+  max-width:1380px;margin:24px auto 0;padding:16px 26px;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+}
+.brand{display:flex;align-items:center;gap:14px}
+.brand-mark{
+  width:42px;height:42px;border-radius:13px;display:grid;place-items:center;position:relative;
+  background:rgba(255,255,255,.06);
+  border:1px solid var(--stroke);
+  box-shadow:0 0 24px rgba(0,255,255,.18);
+}
+.mark-core{
+  width:13px;height:13px;border-radius:4px;
+  background:var(--accent);
+  box-shadow:0 0 14px var(--accent),0 0 30px rgba(0,255,255,.45);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.brand-text h1{font-family:'Space Grotesk';font-size:18px;font-weight:700;letter-spacing:.12em}
+.brand-text h1 .accent{color:var(--accent);text-shadow:0 0 18px rgba(0,255,255,.55)}
+.brand-text p{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--text-3)}
+.top-right{display:flex;align-items:center;gap:14px}
+.clock{font-family:'Space Grotesk';font-size:15px;color:var(--text-2);letter-spacing:.08em;font-variant-numeric:tabular-nums}
+.conn-pill{
+  display:flex;align-items:center;gap:9px;
+  padding:9px 15px;border-radius:999px;
+  border:1px solid var(--stroke);
+  background:rgba(255,255,255,.05);
+  font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--text-2);
+  transition:border-color .25s,box-shadow .25s;
+}
+.conn-live{border-color:var(--stroke-acc);color:var(--accent);box-shadow:0 0 18px rgba(0,255,255,.16)}
+.conn-error{border-color:rgba(255,84,112,.55);color:var(--danger)}
+.led{width:8px;height:8px;border-radius:50%;flex:none;background:#3c3c4c;transition:background .3s}
+.led.on{background:var(--accent);box-shadow:0 0 8px var(--accent),0 0 18px rgba(0,255,255,.6);animation:pulse 1.6s ease-in-out infinite}
+
+/* ---------- Layout ---------- */
+.layout{
+  position:relative;z-index:1;
+  max-width:1380px;margin:22px auto 60px;padding:0 26px;
+  display:grid;grid-template-columns:1fr 1fr;gap:22px;
+}
+.panel{padding:24px;animation:fadeUp .55s ease both}
+.panel:nth-child(2){animation-delay:.1s}
+.panel.wide{grid-column:1/-1;animation-delay:.2s}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.kicker{font-family:'Space Grotesk';font-size:11px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--text-3)}
+.live-tag{display:flex;align-items:center;gap:8px;font-family:'Space Grotesk';font-size:12px;font-weight:700;letter-spacing:.22em;color:var(--accent);text-shadow:0 0 14px rgba(0,255,255,.5)}
+.tag{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-2);background:rgba(255,255,255,.05);border:1px solid var(--stroke);padding:5px 10px;border-radius:999px}
+
+/* ---------- Previsualización Discord ---------- */
+.dc-frame{display:flex;justify-content:center;padding:6px 0 18px}
+.dc-card{
+  width:min(100%,430px);display:flex;gap:14px;padding:14px;
+  background:rgba(13,16,24,.72);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:14px;
+  box-shadow:0 20px 50px rgba(0,0,0,.55);
+  animation:cardGlow 4.5s ease-in-out infinite;
+}
+@keyframes cardGlow{0%,100%{box-shadow:0 20px 50px rgba(0,0,0,.55)}50%{box-shadow:0 20px 50px rgba(0,0,0,.55),0 0 36px rgba(0,255,255,.12)}}
+.dc-art{position:relative;width:96px;height:96px;flex:none}
+.dc-large-wrap{width:100%;height:100%;border-radius:10px;overflow:hidden;background:#1a2130;position:relative}
+.dc-large{width:100%;height:100%;object-fit:cover;display:none}
+.dc-ph{position:absolute;inset:0;display:grid;place-items:center;font-family:'Space Grotesk';font-size:34px;font-weight:700;color:#3d4a63;background:radial-gradient(circle at 30% 25%,rgba(0,255,255,.10),transparent 60%),linear-gradient(145deg,#1a2130,#141925)}
+.dc-large-wrap.has-img .dc-ph{display:none}
+.dc-large-wrap.has-img .dc-large{display:block}
+.dc-small-wrap{position:absolute;right:-6px;bottom:-6px;width:36px;height:36px;border-radius:50%;background:rgba(13,16,24,.9);padding:3px}
+.dc-small{width:100%;height:100%;border-radius:50%;object-fit:cover;background:#1a2130;display:none;border:1px solid #262d3d}
+.dc-small-wrap.has-img .dc-small{display:block}
+.dc-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.dc-app{font-family:'Space Grotesk';font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.dc-details{font-size:14px;font-weight:600;color:#f2f3f5;line-height:1.3}
+.dc-state{font-size:12px;color:#aab0bd;line-height:1.3}
+.dc-elapsed{display:flex;align-items:center;gap:5px;font-size:11px;color:#8a93a3;margin-top:3px;font-variant-numeric:tabular-nums}
+.dc-party{font-size:11px;color:#8a93a3;margin-top:2px}
+.dc-stream{font-size:11px;color:var(--accent-2);margin-top:2px}
+.dc-empty{font-size:12px;color:#8a93a3;font-style:italic}
+.dc-buttons{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.dc-btn{font-size:11px;font-weight:600;text-decoration:none;color:#e3e5e8;background:#232a3b;border:1px solid #2e374c;border-radius:8px;padding:6px 14px;transition:background .2s,border-color .2s}
+.dc-btn:hover{background:#2e374c;border-color:#3d4a68}
+
+.divider{height:1px;background:var(--stroke);margin:4px 0 16px}
+
+/* ---------- Formularios ---------- */
+.field{display:block;margin-bottom:13px}
+.field .label{display:block;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);margin-bottom:7px}
+.field input{
+  width:100%;background:rgba(255,255,255,.06);
+  border:1px solid var(--stroke);border-radius:12px;
+  padding:12px 14px;color:var(--text);
+  font:400 13px 'Inter';
+  transition:border-color .2s,box-shadow .2s,background .2s;
+}
+.field input::placeholder{color:#4a4a5e}
+.field input:focus{outline:none;border-color:var(--stroke-acc);background:rgba(0,255,255,.04);box-shadow:0 0 0 3px rgba(0,255,255,.10)}
+.field input:disabled,.field select:disabled{opacity:.45;cursor:not-allowed}
+.field select{
+  width:100%;background:rgba(255,255,255,.06);
+  border:1px solid var(--stroke);border-radius:12px;
+  padding:12px 14px;color:var(--text);
+  font:400 13px 'Inter';cursor:pointer;
+  transition:border-color .2s,box-shadow .2s,background .2s;
+}
+.field select:focus{outline:none;border-color:var(--stroke-acc);background:rgba(0,255,255,.04);box-shadow:0 0 0 3px rgba(0,255,255,.10)}
+.field select option{background:#12121c;color:var(--text)}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+
+/* ---------- Subida de imágenes ---------- */
+.upload-row{display:flex;align-items:center;gap:9px;margin-top:8px;flex-wrap:wrap}
+.upload-row .btn{padding:9px 13px;font-size:10px}
+.upload-row .up-hint{font-size:10px;color:var(--text-3);letter-spacing:.03em;line-height:1.35}
+
+/* ---------- Switch ---------- */
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding:12px 14px;background:rgba(255,255,255,.03);border:1px solid var(--stroke);border-radius:14px}
+.switch{display:flex;align-items:center;gap:11px;cursor:pointer;user-select:none}
+.switch input{display:none}
+.switch .track{width:42px;height:22px;border-radius:999px;background:rgba(255,255,255,.12);position:relative;transition:background .25s,border-color .25s;flex:none;border:1px solid var(--stroke)}
+.switch .track::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#9aa0ad;transition:transform .25s,background .25s}
+.switch input:checked + .track{background:rgba(0,255,255,.22);border-color:var(--stroke-acc)}
+.switch input:checked + .track::after{transform:translateX(20px);background:var(--accent);box-shadow:0 0 10px var(--accent)}
+.switch .sw-label{font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--text-2)}
+.switch .sw-hint{font-size:10px;color:var(--text-3);letter-spacing:.03em}
+
+/* ---------- Botones ---------- */
+.btn{
+  font:600 11px/1 'Space Grotesk';letter-spacing:.14em;text-transform:uppercase;
+  padding:13px 18px;border-radius:11px;cursor:pointer;
+  border:1px solid var(--stroke);background:rgba(255,255,255,.04);color:var(--text-2);
+  transition:all .22s ease;white-space:nowrap;
+}
+.btn:hover{color:var(--text);border-color:rgba(255,255,255,.3);transform:translateY(-1px)}
+.btn.primary{
+  color:var(--accent);border-color:var(--stroke-acc);
+  box-shadow:0 0 16px rgba(0,255,255,.18),inset 0 0 16px rgba(0,255,255,.05);
+}
+.btn.primary:hover{background:var(--accent);color:#04040a;border-color:var(--accent);box-shadow:0 0 30px rgba(0,255,255,.55);transform:translateY(-2px)}
+.btn.ghost:hover{border-color:var(--stroke-acc);color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:wait;transform:none!important}
+.actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+
+.empty{color:var(--text-3);font-size:13px;padding:26px 8px;text-align:center;border:1px dashed var(--stroke);border-radius:12px;letter-spacing:.03em}
+
+/* ---------- Perfiles y rotación ---------- */
+.profiles-head{display:grid;grid-template-columns:1fr auto auto;gap:10px}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.chip{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.04);border:1px solid var(--stroke);border-radius:12px;padding:8px 10px 8px 14px;transition:border-color .2s,box-shadow .2s}
+.chip.on{border-color:var(--stroke-acc);box-shadow:0 0 14px rgba(0,255,255,.12)}
+.chip .pn{font-size:12.5px;font-weight:600;color:var(--text);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip .pact{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.chip button{background:rgba(255,255,255,.06);border:1px solid var(--stroke);border-radius:8px;color:var(--text-2);font:600 10px 'Space Grotesk';letter-spacing:.08em;text-transform:uppercase;padding:5px 9px;cursor:pointer;transition:all .2s}
+.chip button:hover{color:var(--accent);border-color:var(--stroke-acc)}
+.chip .del:hover{color:var(--danger);border-color:rgba(255,84,112,.55)}
+.sub-head{margin-top:20px;padding-top:16px;border-top:1px solid var(--stroke)}
+.rotation-row{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.rot-ctrl{display:flex;flex-direction:column;gap:6px;width:180px}
+.rot-ctrl .label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3)}
+.rot-ctrl input{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--stroke);border-radius:12px;padding:11px 14px;color:var(--text);font:400 13px 'Inter'}
+.rot-ctrl input:focus{outline:none;border-color:var(--stroke-acc);box-shadow:0 0 0 3px rgba(0,255,255,.10)}
+.rot-ctrl textarea{
+  width:100%;background:rgba(255,255,255,.06);
+  border:1px solid var(--stroke);border-radius:12px;
+  padding:11px 14px;color:var(--text);font:400 13px/1.5 'Inter';
+  resize:vertical;
+}
+.rot-ctrl textarea:focus{outline:none;border-color:var(--stroke-acc);box-shadow:0 0 0 3px rgba(0,255,255,.10)}
+.rot-ctrl select{
+  width:100%;background:rgba(255,255,255,.06);
+  border:1px solid var(--stroke);border-radius:12px;
+  padding:11px 14px;color:var(--text);font:400 13px 'Inter';cursor:pointer;
+}
+.rot-ctrl select:focus{outline:none;border-color:var(--stroke-acc);box-shadow:0 0 0 3px rgba(0,255,255,.10)}
+.rot-ctrl select option{background:#12121c}
+.rot-state{font-size:12px;color:var(--text-2);margin-top:12px;display:flex;align-items:center;gap:8px}
+.rot-state .dot{width:8px;height:8px;border-radius:50%;background:#3c3c4c}
+.rot-state .dot.on{background:var(--accent);box-shadow:0 0 8px var(--accent);animation:pulse 1.6s ease-in-out infinite}
+.emoji-img{width:16px;height:16px;vertical-align:-3px;border-radius:2px;display:inline-block}
+
+/* ---------- Toasts ---------- */
+.toasts{position:fixed;right:22px;bottom:22px;z-index:50;display:flex;flex-direction:column;gap:10px;align-items:flex-end;pointer-events:none}
+.toast{
+  pointer-events:auto;
+  background:rgba(22,22,32,.85);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  border:1px solid var(--stroke);border-left:3px solid var(--accent);
+  border-radius:11px;padding:12px 18px;font-size:12.5px;color:var(--text);
+  box-shadow:0 14px 40px rgba(0,0,0,.5);
+  animation:toastIn .3s ease;max-width:340px;
+}
+.toast.err{border-left-color:var(--danger)}
+.toast.info{border-left-color:var(--accent-2)}
+.toast.leaving{animation:toastOut .3s ease forwards}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateX(30px)}}
+
+/* ---------- Responsive ---------- */
+@media (max-width:960px){
+  .layout{grid-template-columns:1fr}
+  .field-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- Fondo decorativo -->
+<div class="bg" aria-hidden="true">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="grid-overlay"></div>
+</div>
+
+<!-- Header -->
+<header class="topbar glass">
+  <div class="brand">
+    <div class="brand-mark"><span class="mark-core"></span></div>
+    <div class="brand-text">
+      <h1>PRESENCE<span class="accent">·OS</span></h1>
+      <p>Rich Presence Dashboard</p>
+    </div>
+  </div>
+  <div class="top-right">
+    <div class="conn-pill" id="connPill">
+      <span class="led" id="led"></span>
+      <span id="connText">Conectando…</span>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- Panel 1 · Presencia en Discord -->
+  <section class="glass panel">
+    <div class="panel-head">
+      <span class="kicker">01 / Presencia en Discord</span>
+      <span class="live-tag"><span class="led on"></span> LIVE</span>
+    </div>
+
+    <div class="dc-frame">
+      <div class="dc-card">
+        <div class="dc-art">
+          <div class="dc-large-wrap">
+            <img class="dc-large" id="dcLarge" alt="">
+            <div class="dc-ph"><span id="dcPhLetter">P</span></div>
+          </div>
+          <div class="dc-small-wrap"><img class="dc-small" id="dcSmall" alt=""></div>
+        </div>
+        <div class="dc-body">
+          <div class="dc-app" id="dcApp">Playing PRESENCE</div>
+          <div class="dc-details" id="dcDetails">Sin presencia activa</div>
+          <div class="dc-state" id="dcState"></div>
+          <div class="dc-party" id="dcParty"></div>
+          <div class="dc-stream" id="dcStream"></div>
+          <div class="dc-elapsed">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <span id="dcElapsed">00:00</span>
+          </div>
+          <div class="dc-buttons" id="dcButtons"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <form id="presenceForm" autocomplete="off" novalidate>
+      <div class="switch-row">
+        <label class="switch">
+          <input type="checkbox" id="inEnabled" checked>
+          <span class="track"></span>
+          <span class="sw-label">RPC personalizado</span>
+        </label>
+        <span class="sw-hint">Los cambios se reflejan al instante en la vista previa</span>
+      </div>
+
+      <div class="field">
+        <span class="label">USER_TOKEN (selfbot)</span>
+        <input type="password" id="inUserToken" placeholder="Pega aquí tu token de usuario" autocomplete="off">
+        <span class="sw-hint" style="display:block;margin-top:4px">Se usa para conectar por pasarela (también acepta la variable de entorno USER_TOKEN).</span>
+      </div>
+      <div class="field">
+        <span class="label">Application ID (opcional)</span>
+        <input type="text" id="inAppId" placeholder="123456789012345678">
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <span class="label">Activity Name</span>
+          <input type="text" id="inName" placeholder="PRESENCE" maxlength="128">
+        </div>
+        <div class="field">
+          <span class="label">Tipo de actividad</span>
+          <select id="inType">
+            <option value="playing">Playing</option>
+            <option value="streaming">Streaming</option>
+            <option value="listening">Listening</option>
+            <option value="watching">Watching</option>
+            <option value="competing">Competing</option>
+          </select>
+        </div>
+        <div class="field">
+          <span class="label">Activity Platform</span>
+          <select id="inPlatform">
+            <option value="desktop">Desktop</option>
+            <option value="android">Android</option>
+            <option value="ios">iOS</option>
+            <option value="playstation_4">PlayStation 4</option>
+            <option value="playstation_5">PlayStation 5</option>
+            <option value="samsung">Samsung</option>
+            <option value="xbox">Xbox</option>
+            <option value="embedded">Embedded</option>
+          </select>
+        </div>
+        <div class="field">
+          <span class="label">Presencia</span>
+          <select id="inStatus">
+            <option value="online">En línea</option>
+            <option value="idle">Inactivo</option>
+            <option value="dnd">No molestar</option>
+            <option value="offline">Desconectado</option>
+            <option value="invisible">Invisible</option>
+          </select>
+        </div>
+        <div class="field">
+          <span class="label">Detalles</span>
+          <input type="text" id="inDetails" placeholder="Detalles de la actividad" maxlength="128">
+        </div>
+        <div class="field">
+          <span class="label">Estado</span>
+          <input type="text" id="inState" placeholder="Estado (state)" maxlength="128">
+        </div>
+        <div class="field">
+          <span class="label">Party — tamaño</span>
+          <input type="number" id="inPartySize" min="1" step="1" placeholder="2">
+        </div>
+        <div class="field">
+          <span class="label">Party — máximo</span>
+          <input type="number" id="inPartyMax" min="1" step="1" placeholder="10">
+        </div>
+        <div class="field">
+          <span class="label">Timestamp — inicio</span>
+          <input type="datetime-local" id="inStartTs">
+        </div>
+        <div class="field">
+          <span class="label">Timestamp — fin</span>
+          <input type="datetime-local" id="inEndTs">
+        </div>
+        <div class="field" id="streamField" style="display:none">
+          <span class="label">Stream URL (Twitch / YouTube)</span>
+          <input type="url" id="inStreamUrl" placeholder="https://www.twitch.tv/…">
+        </div>
+        <div class="field">
+          <span class="label">Large Image URL</span>
+          <input type="text" id="inLargeUrl" placeholder="URL https, nombre de asset (ej: bigimage) o App ID">
+          <div class="upload-row">
+            <input type="file" id="inLargeFile" accept="image/*" hidden>
+            <button type="button" class="btn ghost" id="btnLargeUpload">Subir Imagen</button>
+            <span class="up-hint">Se sube a public/uploads del servidor y autocompleta la URL. Ojo: Discord no ve URLs locales; si sale en «?», usa una URL pública https o un asset del Developer Portal.</span>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label">Large Image Text</span>
+          <input type="text" id="inLargeText" placeholder="Título al pasar el cursor">
+        </div>
+        <div class="field">
+          <span class="label">Small Image URL</span>
+          <input type="text" id="inSmallUrl" placeholder="URL https, nombre de asset (ej: smallicon) o App ID">
+          <div class="upload-row">
+            <input type="file" id="inSmallFile" accept="image/*" hidden>
+            <button type="button" class="btn ghost" id="btnSmallUpload">Subir Imagen</button>
+            <span class="up-hint">Se sube a public/uploads del servidor y autocompleta la URL. Ojo: Discord no ve URLs locales; si sale en «?», usa una URL pública https o un asset del Developer Portal.</span>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label">Small Image Text</span>
+          <input type="text" id="inSmallText" placeholder="Texto al pasar el cursor">
+        </div>
+        <div class="field">
+          <span class="label">Button 1 Text</span>
+          <input type="text" id="inBtn1Text" placeholder="Ver canción" maxlength="32">
+        </div>
+        <div class="field">
+          <span class="label">Button 1 URL</span>
+          <input type="url" id="inBtn1Url" placeholder="https://…">
+        </div>
+        <div class="field">
+          <span class="label">Button 2 Text</span>
+          <input type="text" id="inBtn2Text" placeholder="Spotify" maxlength="32">
+        </div>
+        <div class="field">
+          <span class="label">Button 2 URL</span>
+          <input type="url" id="inBtn2Url" placeholder="https://…">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" id="btnDisconnect" class="btn ghost">Desconectar</button>
+        <button type="submit" id="btnUpdate" class="btn primary">Actualizar estado</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Panel 2 · Custom Status de perfil -->
+  <section class="glass panel">
+    <div class="panel-head">
+      <span class="kicker">02 / Custom Status de perfil</span>
+      <span class="tag">emoji + texto</span>
+    </div>
+
+    <div class="field-grid">
+      <div class="field">
+        <span class="label">Emoji (unicode o &lt;:nombre:id&gt; / &lt;a:nombre:id&gt;)</span>
+        <input type="text" id="psEmoji" placeholder="🎵 o <:nombre:id>" maxlength="64" autocomplete="off">
+      </div>
+      <div class="field">
+        <span class="label">Texto (máx 128)</span>
+        <input type="text" id="psText" placeholder="Escuchando música…" maxlength="128" autocomplete="off">
+      </div>
+    </div>
+    <div class="actions">
+      <button type="button" id="btnPsApply" class="btn primary">Aplicar estado</button>
+    </div>
+
+    <div class="sub-head">
+      <div class="rotation-row">
+        <label class="switch" style="align-self:center">
+          <input type="checkbox" id="psRotActive">
+          <span class="track"></span>
+          <span class="sw-label">Rotar estados de perfil</span>
+        </label>
+        <div class="rot-ctrl" style="flex:1;min-width:280px">
+          <span class="label">Estados (una por línea — «texto | emoji», emoji puede ser &lt;:nombre:id&gt;)</span>
+          <textarea id="psList" rows="4" placeholder="Nivel 1 | 🎮&#10;En streaming | 🔴&#10;En rabia | &lt;:kekw:123456789012345678&gt;" autocomplete="off"></textarea>
+        </div>
+        <div class="rot-ctrl" style="width:160px">
+          <span class="label">Intervalo (segundos)</span>
+          <input type="number" id="psRotSeconds" min="5" step="5" value="60">
+        </div>
+        <button type="button" id="btnPsRotApply" class="btn primary" style="align-self:center">Aplicar</button>
+      </div>
+      <div class="rot-state" id="psRotState">
+        <span class="dot"></span>
+        <span>Rotación de estados de perfil inactiva</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Panel 3 · Plantillas RPC y rotación -->
+  <section class="glass panel wide">
+    <div class="panel-head">
+      <span class="kicker">03 / Plantillas RPC y rotación</span>
+      <span class="tag" id="profileCount">0 plantillas</span>
+    </div>
+
+    <div class="profiles-head">
+      <div class="field" style="margin:0">
+        <span class="label">Nombre de la plantilla</span>
+        <input type="text" id="inProfileName" placeholder="Mi plantilla favorita" autocomplete="off">
+      </div>
+      <button type="button" id="btnProfileSave" class="btn primary" style="align-self:end">Guardar plantilla</button>
+      <button type="button" id="btnProfileDelete" class="btn ghost" style="align-self:end">Borrar actual</button>
+    </div>
+    <div class="chips" id="profilesList">
+      <div class="empty" style="width:100%">Aún no hay plantillas. Configura el RPC y guárdala aquí.</div>
+    </div>
+
+    <div class="sub-head">
+      <div class="rotation-row">
+        <label class="switch" style="align-self:center">
+          <input type="checkbox" id="rotActive">
+          <span class="track"></span>
+          <span class="sw-label">Rotar plantillas</span>
+        </label>
+        <div class="rot-ctrl">
+          <span class="label">Intervalo (segundos)</span>
+          <input type="number" id="rotSeconds" min="5" step="5" value="60">
+        </div>
+        <button type="button" id="btnRotApply" class="btn primary">Aplicar rotación</button>
+      </div>
+      <div class="rot-state" id="rotState">
+        <span class="dot"></span>
+        <span>Rotación inactiva</span>
+      </div>
+    </div>
+
+    <div class="sub-head">
+      <div class="rotation-row" style="align-items:flex-start">
+        <label class="switch" style="align-self:center">
+          <input type="checkbox" id="rotStateActive">
+          <span class="track"></span>
+          <span class="sw-label">Rotación de estados</span>
+        </label>
+        <div class="rot-ctrl" style="flex:1;min-width:260px">
+          <span class="label">Frases (una por línea)</span>
+          <textarea id="inStatePhrases" rows="4" placeholder="Nivel 1&#10;Nivel 2&#10;Escuchando…" autocomplete="off"></textarea>
+        </div>
+        <div class="rot-ctrl" style="width:160px">
+          <span class="label">Intervalo (segundos)</span>
+          <input type="number" id="rotStateSeconds" min="5" step="5" value="30">
+        </div>
+        <div class="rot-ctrl" style="width:170px">
+          <span class="label">Campo a inyectar</span>
+          <select id="rotStateInto">
+            <option value="state">Estado (state)</option>
+            <option value="details">Detalles (details)</option>
+          </select>
+        </div>
+        <button type="button" id="btnRotStateApply" class="btn primary" style="align-self:center">Aplicar</button>
+      </div>
+      <div class="rot-state" id="rotStateInfo">
+        <span class="dot"></span>
+        <span>Rotación de estados inactiva</span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ============================================================
+   PRESENCE·OS v2 — Cliente Socket.io (no bloquea la UI)
+   Los handlers de Socket solo actualizan paneles de salida;
+   nunca escriben en los inputs del usuario.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+  var fmtT = function (sec) {
+    sec = Math.max(0, Math.floor(sec || 0));
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+  };
+  var fmtClock = function (d) {
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  };
+
+  var socket = null;
+  var LS = {
+    profiles: 'presence-os:profiles',
+    current: 'presence-os:current',
+    rotation: 'presence-os:rotation',
+    stateRot: 'presence-os:state-rotation',
+    form: 'presence-os:form',
+    profileStatus: 'presence-os:profile-status'
+  };
+  var TYPE_LABELS = {
+    playing: 'Playing', streaming: 'Streaming', listening: 'Listening to',
+    watching: 'Watching', competing: 'Competing in'
+  };
+  var state = {
+    settings: {},
+    rpc: { connected: false, activity: null },
+    rotation: { active: false, seconds: 60, current: null, total: 0 },
+    stateRotation: { active: false, seconds: 30, current: null, total: 0, into: 'state' },
+    profileRotation: { active: false, seconds: 60, current: null, total: 0 },
+    cardActivity: null
+  };
+
+  function lsGet(k, d) {
+    try {
+      var v = localStorage.getItem(k);
+      return v ? JSON.parse(v) : d;
+    } catch (e) { return d; }
+  }
+  function lsSet(k, v) {
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* noop */ }
+  }
+
+  /* Recuerda en localStorage toda la configuración del formulario (incluido
+     el USER_TOKEN) para que el dashboard se autocomplete al recargar. */
+  var formSaveTimer = null;
+  function saveForm() {
+    try { localStorage.setItem(LS.form, JSON.stringify(readAdvanced())); } catch (e) { /* noop */ }
+  }
+  function saveFormSoon() {
+    clearTimeout(formSaveTimer);
+    formSaveTimer = setTimeout(saveForm, 300);
+  }
+
+  /* ---------------- Subida de imágenes locales ---------------- */
+  /* Sube un archivo a /api/upload-image y autocompleta el campo URL
+     de destino con la URL pública devuelta por el servidor. */
+  function uploadImageFile(file, urlId, btnId, resetInput) {
+    if (!file) { toast('Selecciona primero una imagen', 'err'); return; }
+    if (!/^image\//i.test(file.type || '')) {
+      toast('El archivo debe ser una imagen (jpg, jpeg, gif, webp, avif)', 'err');
+      return;
+    }
+    var btn = $(btnId);
+    btn.disabled = true;
+    var oldText = btn.textContent;
+    btn.textContent = 'Subiendo…';
+
+    var fd = new FormData();
+    fd.append('image', file);
+
+    fetch('/api/upload-image', { method: 'POST', body: fd })
+      .then(function (r) {
+        return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+      })
+      .then(function (res) {
+        if (!res.ok || !res.j || !res.j.ok) {
+          throw new Error((res.j && res.j.error) || 'Error al subir la imagen');
+        }
+        $(urlId).value = res.j.url;
+        renderPreview();
+        saveForm();
+        toast('Imagen subida: ' + res.j.file, 'ok');
+      })
+      .catch(function (err) { toast(err.message, 'err'); })
+      .then(function () {
+        btn.disabled = false;
+        btn.textContent = oldText;
+        if (resetInput) resetInput.value = '';
+      });
+  }
+
+  function doImageUpload(fileId, urlId, btnId) {
+    var input = $(fileId);
+    uploadImageFile(input.files && input.files[0], urlId, btnId, input);
+  }
+
+  /* Ctrl+V sobre un campo de URL de imagen: sube la imagen del portapapeles
+     y rellena la URL, sin tener que guardar el archivo. */
+  function bindImagePaste(urlId, btnId) {
+    $(urlId).addEventListener('paste', function (e) {
+      var items = (e.clipboardData || window.clipboardData).items;
+      if (!items) return;
+      for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        if (item.kind === 'file' && /^image\//i.test(item.type || '')) {
+          e.preventDefault();
+          uploadImageFile(item.getAsFile(), urlId, btnId, null);
+          return;
+        }
+      }
+    });
+  }
+
+  function bindImageUploads() {
+    $('btnLargeUpload').addEventListener('click', function () { $('inLargeFile').click(); });
+    $('btnSmallUpload').addEventListener('click', function () { $('inSmallFile').click(); });
+    $('inLargeFile').addEventListener('change', function () {
+      doImageUpload('inLargeFile', 'inLargeUrl', 'btnLargeUpload');
+    });
+    $('inSmallFile').addEventListener('change', function () {
+      doImageUpload('inSmallFile', 'inSmallUrl', 'btnSmallUpload');
+    });
+    bindImagePaste('inLargeUrl', 'btnLargeUpload');
+    bindImagePaste('inSmallUrl', 'btnSmallUpload');
+  }
+
+  /* ---------------- Toasts ---------------- */
+  function toast(msg, type) {
+    var el = document.createElement('div');
+    el.className = 'toast ' + (type || 'ok');
+    el.textContent = msg;
+    $('toasts').appendChild(el);
+    setTimeout(function () {
+      el.classList.add('leaving');
+      setTimeout(function () { el.remove(); }, 300);
+    }, 3400);
+  }
+
+  /* ---------------- Socket.io ---------------- */
+  function loadSocketClient(cb) {
+    var SOCKET_URL = window.location.port === '3000' ? '' : 'http://localhost:3000';
+    var s = document.createElement('script');
+    s.src = SOCKET_URL + '/socket.io/socket.io.js';
+    s.onload = function () {
+      socket = window.io(SOCKET_URL || undefined, { transports: ['websocket', 'polling'] });
+      wireSocket();
+      cb();
+    };
+    s.onerror = function () {
+      setConn(false, 'No se pudo cargar Socket.io desde el servidor local');
+      toast('No se pudo cargar Socket.io desde el servidor local', 'err');
+    };
+    document.head.appendChild(s);
+  }
+
+  function emitAck(ev, data, timeout) {
+    return new Promise(function (resolve, reject) {
+      if (!socket || !socket.connected) return reject(new Error('Servidor local sin conexión'));
+      var done = false;
+      socket.emit(ev, data, function (res) { done = true; resolve(res); });
+      setTimeout(function () { if (!done) reject(new Error('Tiempo de espera agotado')); }, timeout || 12000);
+    });
+  }
+
+  function wireSocket() {
+    socket.on('connect', function () {
+      setConn(true);
+      var saved = lsGet(LS.rotation, null);
+      if (saved && saved.active) {
+        $('rotActive').checked = true;
+        $('rotSeconds').value = saved.seconds || 60;
+        applyRotation();
+      }
+      var savedStates = lsGet(LS.stateRot, null);
+      if (savedStates && savedStates.active) {
+        $('rotStateActive').checked = true;
+        fillStateRotationForm(savedStates);
+        applyStateRotation();
+      }
+      var savedPs = lsGet(LS.profileStatus, null);
+      if (savedPs && savedPs.active) {
+        $('psRotActive').checked = true;
+        $('psRotSeconds').value = savedPs.seconds || 60;
+        if (savedPs.statuses && savedPs.statuses.length) {
+          $('psList').value = profileStatusesToText(savedPs.statuses);
+        }
+        applyProfileRotation();
+      }
+    });
+    socket.on('disconnect', function () { setConn(false, 'Desconectado del servidor'); });
+    socket.on('connect_error', function () { setConn(false, 'Servidor no accesible'); });
+
+    socket.on('init', function (data) {
+      state.settings = data.settings || {};
+      state.rpc = data.rpc || state.rpc;
+      if (data.rotation) state.rotation = data.rotation;
+      if (data.stateRotation) state.stateRotation = data.stateRotation;
+      if (data.profileRotation) state.profileRotation = data.profileRotation;
+      var savedForm = lsGet(LS.form, null);
+      if (savedForm && typeof savedForm === 'object') fillForm(savedForm);
+      else fillSettings(state.settings);
+      renderRpc(state.rpc);
+      updateRotationUI();
+      updateStateRotationUI();
+      updateProfileRotationUI();
+      setConn(state.rpc.connected, state.rpc.error);
+    });
+
+    socket.on('rpcStatus', function (s) {
+      state.rpc = s;
+      setConn(s.connected, s.error);
+      renderRpc(s);
+    });
+
+    socket.on('presenceUpdated', function (activity) {
+      state.rpc.activity = activity;
+      renderRpc(state.rpc);
+    });
+
+    socket.on('rotationState', function (r) {
+      state.rotation.active = !!r.active;
+      state.rotation.seconds = r.seconds || state.rotation.seconds;
+      state.rotation.current = r.current ? r.current.name : null;
+      state.rotation.total = r.total || 0;
+      if (!r.active && $('rotActive').checked) {
+        var rt0 = lsGet(LS.rotation, {});
+        lsSet(LS.rotation, Object.assign({}, rt0, { active: false }));
+      }
+      updateRotationUI();
+    });
+
+    socket.on('stateRotationState', function (r) {
+      state.stateRotation.active = !!r.active;
+      state.stateRotation.seconds = r.seconds || state.stateRotation.seconds;
+      state.stateRotation.into = r.into || 'state';
+      state.stateRotation.current = r.current ? r.current.text : null;
+      state.stateRotation.total = r.total || 0;
+      if (!r.active && $('rotStateActive').checked) {
+        var sr0 = lsGet(LS.stateRot, {});
+        lsSet(LS.stateRot, Object.assign({}, sr0, { active: false }));
+      }
+      updateStateRotationUI();
+    });
+
+    socket.on('profileRotationState', function (r) {
+      state.profileRotation.active = !!r.active;
+      state.profileRotation.seconds = r.seconds || state.profileRotation.seconds;
+      state.profileRotation.total = r.total || 0;
+      state.profileRotation.current = r.current ? { text: r.current.text || '', emoji: r.current.emoji || '' } : null;
+      if (!r.active && $('psRotActive').checked) {
+        var pr0 = lsGet(LS.profileStatus, {});
+        lsSet(LS.profileStatus, Object.assign({}, pr0, { active: false }));
+      }
+      updateProfileRotationUI();
+    });
+  }
+
+  function setConn(connected, error) {
+    var pill = $('connPill');
+    pill.className = 'conn-pill';
+    pill.classList.toggle('conn-live', !!connected);
+    pill.classList.toggle('conn-error', !!error && !connected);
+    $('led').classList.toggle('on', !!connected);
+    $('connText').textContent = connected ? 'LIVE' : (error ? 'Sin conexión' : 'Desconectado');
+    pill.title = error || '';
+  }
+
+  /* ---------------- Formulario de presencia (avanzado) ---------------- */
+  function toDtLocal(ms) {
+    if (!ms) return '';
+    var d = new Date(Number(ms) || new Date(ms));
+    if (isNaN(d.getTime())) return '';
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+           'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function readAdvanced() {
+    var st = $('inStartTs').value, et = $('inEndTs').value;
+    var ps = parseInt($('inPartySize').value, 10), pm = parseInt($('inPartyMax').value, 10);
+    return {
+      enabled: $('inEnabled').checked,
+      userToken: $('inUserToken').value.trim(),
+      applicationId: $('inAppId').value.trim(),
+      name: $('inName').value.trim(),
+      type: $('inType').value,
+      platform: $('inPlatform').value,
+      status: $('inStatus').value,
+      streamUrl: $('inStreamUrl').value.trim(),
+      details: $('inDetails').value.trim(),
+      state: $('inState').value.trim(),
+      partySize: isNaN(ps) ? '' : ps,
+      partyMax: isNaN(pm) ? '' : pm,
+      startTimestamp: st ? new Date(st).getTime() : '',
+      endTimestamp: et ? new Date(et).getTime() : '',
+      largeImageUrl: $('inLargeUrl').value.trim(),
+      largeImageText: $('inLargeText').value.trim(),
+      smallImageUrl: $('inSmallUrl').value.trim(),
+      smallImageText: $('inSmallText').value.trim(),
+      button1Text: $('inBtn1Text').value.trim(),
+      button1Url: $('inBtn1Url').value.trim(),
+      button2Text: $('inBtn2Text').value.trim(),
+      button2Url: $('inBtn2Url').value.trim()
+    };
+  }
+
+  function fillForm(a) {
+    if (!a) return;
+    if (a.enabled !== undefined) $('inEnabled').checked = !!a.enabled;
+    $('inUserToken').value = a.userToken || '';
+    $('inAppId').value = a.applicationId || '';
+    $('inName').value = a.name || '';
+    $('inType').value = a.type || 'playing';
+    $('inPlatform').value = a.platform || 'desktop';
+    $('inStatus').value = a.status || 'online';
+    $('inStreamUrl').value = a.streamUrl || '';
+    $('inDetails').value = a.details || '';
+    $('inState').value = a.state || '';
+    $('inPartySize').value = a.partySize || '';
+    $('inPartyMax').value = a.partyMax || '';
+    $('inStartTs').value = toDtLocal(a.startTimestamp);
+    $('inEndTs').value = toDtLocal(a.endTimestamp);
+    $('inLargeUrl').value = a.largeImageUrl || '';
+    $('inLargeText').value = a.largeImageText || '';
+    $('inSmallUrl').value = a.smallImageUrl || '';
+    $('inSmallText').value = a.smallImageText || '';
+    $('inBtn1Text').value = a.button1Text || '';
+    $('inBtn1Url').value = a.button1Url || '';
+    $('inBtn2Text').value = a.button2Text || '';
+    $('inBtn2Url').value = a.button2Url || '';
+    toggleStreamField();
+    setFormEnabled($('inEnabled').checked);
+  }
+
+  function fillSettings(s) {
+    if (!s) return;
+    fillForm(s);
+    renderPreview();
+  }
+
+  function setFormEnabled(on) {
+    var els = $('presenceForm').querySelectorAll('input, select');
+    for (var i = 0; i < els.length; i++) {
+      if (els[i].id === 'inEnabled') continue;
+      els[i].disabled = !on;
+    }
+  }
+
+  function toggleStreamField() {
+    $('streamField').style.display = $('inType').value === 'streaming' ? '' : 'none';
+  }
+
+  /* ---------------- Tarjeta de preview ---------------- */
+  function renderCard(a) {
+    a = a || {};
+    state.cardActivity = a;
+
+    var app = String(a.name || a.applicationId || state.settings.applicationId || 'PRESENCE');
+    $('dcApp').textContent = (TYPE_LABELS[a.type] || 'Playing') + ' ' + app;
+    $('dcPhLetter').textContent = (a.details || app).charAt(0).toUpperCase();
+
+    var lw = $('dcLarge').closest('.dc-large-wrap');
+    if (a.largeImageUrl) {
+      $('dcLarge').onerror = function () { lw.classList.remove('has-img'); };
+      $('dcLarge').src = a.largeImageUrl; lw.classList.add('has-img');
+    } else {
+      $('dcLarge').onerror = null;
+      $('dcLarge').removeAttribute('src'); lw.classList.remove('has-img');
+    }
+
+    var sw = $('dcSmall').closest('.dc-small-wrap');
+    if (a.smallImageUrl) {
+      $('dcSmall').onerror = function () { sw.classList.remove('has-img'); };
+      $('dcSmall').src = a.smallImageUrl; sw.classList.add('has-img');
+    } else {
+      $('dcSmall').onerror = null;
+      $('dcSmall').removeAttribute('src'); sw.classList.remove('has-img');
+    }
+
+    $('dcDetails').textContent = a.details || 'Sin presencia activa';
+    $('dcState').textContent = a.state || '';
+
+    var party = '';
+    if (a.partySize && a.partyMax) party = '👥 ' + a.partySize + '/' + a.partyMax;
+    $('dcParty').textContent = party;
+
+    var stream = '';
+    if (a.streamUrl && TYPE_LABELS[a.type] === 'Streaming') {
+      try { stream = '🔴 En directo · ' + new URL(a.streamUrl).hostname; } catch (e) { stream = '🔴 En directo'; }
+    }
+    $('dcStream').textContent = stream;
+
+    var box = $('dcButtons');
+    box.innerHTML = '';
+    var btns = [];
+    if (a.button1Text && a.button1Url) btns.push([a.button1Text, a.button1Url]);
+    if (a.button2Text && a.button2Url) btns.push([a.button2Text, a.button2Url]);
+    for (var i = 0; i < btns.length; i++) {
+      var el = document.createElement('a');
+      el.className = 'dc-btn';
+      el.textContent = btns[i][0];
+      el.href = btns[i][1];
+      el.target = '_blank';
+      el.rel = 'noopener noreferrer';
+      box.appendChild(el);
+    }
+    tickElapsed();
+  }
+
+  function renderPreview() {
+    if (!$('inEnabled').checked) {
+      state.cardActivity = null;
+      $('dcDetails').textContent = 'RPC personalizado desactivado';
+      $('dcState').textContent = '';
+      $('dcParty').textContent = '';
+      $('dcStream').textContent = '';
+      $('dcButtons').innerHTML = '';
+      $('dcElapsed').textContent = '00:00';
+      return;
+    }
+    renderCard(readAdvanced());
+  }
+
+  function renderRpc(rpcState) {
+    if (rpcState && rpcState.activity) renderCard(rpcState.activity);
+    else renderPreview();
+  }
+
+  function tickElapsed() {
+    var a = state.cardActivity;
+    var now = Date.now();
+    var start = a && a.startTimestamp ? new Date(a.startTimestamp).getTime() : 0;
+    var end = a && a.endTimestamp ? new Date(a.endTimestamp).getTime() : 0;
+    if (end > now) {
+      $('dcElapsed').textContent = fmtT(Math.max(0, Math.ceil((end - now) / 1000)));
+    } else if (start) {
+      $('dcElapsed').textContent = fmtT(Math.max(0, Math.floor((now - start) / 1000)));
+    } else {
+      $('dcElapsed').textContent = '00:00';
+    }
+  }
+
+  /* ---------------- Perfiles (localStorage) ---------------- */
+  function loadProfiles() {
+    return lsGet(LS.profiles, []);
+  }
+
+  /* Guarda el array de perfiles serializado con JSON.stringify y
+     redibuja la lista al instante. */
+  function persistProfiles(list) {
+    try {
+      localStorage.setItem(LS.profiles, JSON.stringify(list));
+    } catch (e) {
+      toast('No se pudo guardar en localStorage', 'err');
+      return;
+    }
+    renderProfiles();
+  }
+
+  function saveProfiles(list) {
+    persistProfiles(list);
+  }
+
+  /* Si la rotación está activa, se reenvía al backend el array actual de
+     localStorage para que siga rotando sobre la lista actualizada. */
+  function resyncRotation() {
+    if (!state.rotation.active) return;
+    var profiles = loadProfiles();
+    var seconds = Math.max(5, parseInt($('rotSeconds').value, 10) || 60);
+    if (!profiles.length) {
+      state.rotation.active = false;
+      lsSet(LS.rotation, { active: false, seconds: seconds });
+      updateRotationUI();
+      emitAck('stopRotation').catch(function () {});
+      toast('Rotación detenida: no quedan perfiles', 'info');
+      return;
+    }
+    emitAck('saveRotation', { profiles: profiles, seconds: seconds })
+      .catch(function () {});
+  }
+
+  function saveProfile() {
+    var name = $('inProfileName').value.trim();
+    if (!name) { toast('Dale un nombre al perfil', 'err'); return; }
+    var list = loadProfiles();
+    var idx = -1;
+    for (var i = 0; i < list.length; i++) if ((list[i].profileName || list[i].name) === name) { idx = i; break; }
+    var p = readAdvanced();
+    delete p.userToken; /* el token no se copia entre perfiles */
+    p.profileName = name; /* nombre del perfil, sin pisar el Activity Name */
+    if (idx >= 0) list[idx] = p; else list.push(p);
+    lsSet(LS.current, name);
+    persistProfiles(list);
+    saveForm();
+    resyncRotation();
+    toast('Perfil guardado: ' + name, 'ok');
+  }
+
+  function loadProfile(name) {
+    var list = loadProfiles();
+    var p = null;
+    for (var i = 0; i < list.length; i++) if ((list[i].profileName || list[i].name) === name) { p = list[i]; break; }
+    if (!p) { toast('No existe el perfil «' + name + '»', 'err'); return; }
+    var keepToken = $('inUserToken').value; /* los perfiles no guardan el token */
+    fillForm(p);
+    if (keepToken && !p.userToken) $('inUserToken').value = keepToken;
+    $('inProfileName').value = name;
+    lsSet(LS.current, name);
+    saveForm();
+    renderProfiles();
+    renderPreview();
+    toast('Perfil cargado: ' + name, 'ok');
+  }
+
+  function deleteProfile(name) {
+    var list = loadProfiles().filter(function (p) { return (p.profileName || p.name) !== name; });
+    persistProfiles(list);
+    if (lsGet(LS.current) === name) {
+      lsSet(LS.current, null);
+      $('inProfileName').value = '';
+    }
+    resyncRotation();
+    toast('Perfil eliminado: ' + name, 'info');
+  }
+
+  /* Crea los elementos dinámicos de la lista desde localStorage. Se invoca
+     al cargar la página, después de guardar y después de borrar. */
+  function renderProfiles() {
+    var list = loadProfiles();
+    if (!Array.isArray(list)) list = [];
+    var box = $('profilesList');
+    if (!box) return;
+    $('profileCount').textContent = list.length + (list.length === 1 ? ' plantilla' : ' plantillas');
+    if (!list.length) {
+      box.innerHTML = '<div class="empty" style="width:100%">Aún no hay plantillas. Configura el RPC y guárdala aquí.</div>';
+      return;
+    }
+    var current = lsGet(LS.current, null);
+    var html = '';
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i] || {};
+      var nm = p.profileName || p.name || ('Perfil ' + (i + 1));
+      var isCur = nm === current;
+      html += '<div class="chip' + (isCur ? ' on' : '') + '">' +
+              '<span class="pn">' + esc(nm) + '</span>' +
+              (isCur ? '<span class="pact">activo</span>' : '') +
+              '<button type="button" data-act="load" data-name="' + esc(nm) + '">Abrir</button>' +
+              '<button type="button" class="del" data-act="del" data-name="' + esc(nm) + '" title="Eliminar">✕</button>' +
+              '</div>';
+    }
+    box.innerHTML = html;
+  }
+
+  /* ---------------- Rotación ---------------- */
+  function updateRotationUI() {
+    var r = state.rotation;
+    $('rotActive').checked = !!r.active;
+    var dot = $('rotState').querySelector('.dot');
+    dot.classList.toggle('on', !!r.active);
+    var txt = $('rotState').querySelector('span:last-child');
+    if (r.active && r.current) {
+      txt.textContent = 'Rotando cada ' + r.seconds + 's · Actual: ' + r.current +
+                        (r.total > 1 ? ' · ' + r.total + ' perfiles' : '');
+    } else if (r.active) {
+      txt.textContent = 'Rotando cada ' + r.seconds + 's';
+    } else {
+      txt.textContent = 'Rotación inactiva';
+    }
+  }
+
+  function applyRotation() {
+    var profiles = loadProfiles();
+    var seconds = Math.max(5, parseInt($('rotSeconds').value, 10) || 60);
+    if (!$('rotActive').checked) {
+      state.rotation.active = false;
+      state.rotation.current = null;
+      lsSet(LS.rotation, { active: false, seconds: seconds });
+      updateRotationUI();
+      if (socket && socket.connected) socket.emit('stopRotation');
+      toast('Rotación detenida', 'info');
+      return;
+    }
+    if (!profiles.length) {
+      toast('Guarda al menos un perfil para rotar', 'err');
+      $('rotActive').checked = false;
+      updateRotationUI();
+      return;
+    }
+    lsSet(LS.rotation, { active: true, seconds: seconds });
+    emitAck('saveRotation', { profiles: profiles, seconds: seconds })
+      .then(function (res) {
+        if (res && !res.ok) {
+          toast(res.error || 'No se pudo iniciar la rotación', 'err');
+          $('rotActive').checked = false;
+        } else {
+          toast('Rotación cada ' + seconds + 's (' + profiles.length + ' perfiles)', 'ok');
+        }
+        updateRotationUI();
+      })
+      .catch(function (err) { toast(err.message, 'err'); updateRotationUI(); });
+  }
+
+  /* ---------------- Rotación de estados (frases en bucle) ---------------- */
+  function readStateRotation() {
+    var phrases = $('inStatePhrases').value.split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+    return {
+      phrases: phrases,
+      seconds: Math.max(5, parseInt($('rotStateSeconds').value, 10) || 30),
+      into: $('rotStateInto').value === 'details' ? 'details' : 'state'
+    };
+  }
+
+  function fillStateRotationForm(cfg) {
+    if (!cfg) return;
+    $('inStatePhrases').value = (cfg.phrases || []).join('\n');
+    $('rotStateSeconds').value = cfg.seconds || 30;
+    $('rotStateInto').value = cfg.into === 'details' ? 'details' : 'state';
+  }
+
+  function updateStateRotationUI() {
+    var r = state.stateRotation;
+    $('rotStateActive').checked = !!r.active;
+    var dot = $('rotStateInfo').querySelector('.dot');
+    dot.classList.toggle('on', !!r.active);
+    var txt = $('rotStateInfo').querySelector('span:last-child');
+    if (r.active && r.current) {
+      txt.textContent = 'Rotando cada ' + r.seconds + 's · Actual: «' + r.current + '»' +
+                        (r.total > 1 ? ' · ' + r.total + ' frases' : '');
+    } else if (r.active) {
+      txt.textContent = 'Rotando cada ' + r.seconds + 's';
+    } else {
+      txt.textContent = 'Rotación de estados inactiva';
+    }
+  }
+
+  function applyStateRotation() {
+    var cfg = readStateRotation();
+    if (!$('rotStateActive').checked) {
+      state.stateRotation.active = false;
+      state.stateRotation.current = null;
+      lsSet(LS.stateRot, { active: false, seconds: cfg.seconds, into: cfg.into });
+      updateStateRotationUI();
+      if (socket && socket.connected) socket.emit('stopStateRotation');
+      toast('Rotación de estados detenida', 'info');
+      return;
+    }
+    if (!cfg.phrases.length) {
+      toast('Escribe al menos una frase para rotar', 'err');
+      $('rotStateActive').checked = false;
+      updateStateRotationUI();
+      return;
+    }
+    cfg.base = readAdvanced();
+    lsSet(LS.stateRot, { active: true, phrases: cfg.phrases, seconds: cfg.seconds, into: cfg.into });
+    emitAck('saveStateRotation', cfg)
+      .then(function (res) {
+        if (res && !res.ok) {
+          toast(res.error || 'No se pudo iniciar la rotación de estados', 'err');
+          $('rotStateActive').checked = false;
+        } else {
+          toast('Rotación de estados cada ' + cfg.seconds + 's (' + cfg.phrases.length + ' frases)', 'ok');
+        }
+        updateStateRotationUI();
+      })
+      .catch(function (err) { toast(err.message, 'err'); updateStateRotationUI(); });
+  }
+
+  /* ---------------- Custom Status de perfil ---------------- */
+  /* Emojis personalizados de Discord: <:nombre:id> / <a:nombre:id> */
+  var CUSTOM_EMOJI_RE = /^<(a?):([A-Za-z0-9_]{2,32}):([0-9]{17,20})>$/;
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function parseEmojiTag(raw) {
+    var s = String(raw == null ? '' : raw).trim();
+    if (!s) return null;
+    var m = s.match(CUSTOM_EMOJI_RE);
+    if (!m) return null;
+    return { name: m[2], id: m[3], animated: m[1] === 'a' };
+  }
+
+  function emojiToText(e) {
+    if (!e) return '';
+    if (typeof e === 'object') {
+      if (!e.id) return e.name || '';
+      return '<' + (e.animated ? 'a' : '') + ':' + (e.name || '') + ':' + e.id + '>';
+    }
+    return String(e);
+  }
+
+  function emojiHtml(e) {
+    if (!e) return '';
+    if (typeof e === 'object' && e.id) {
+      return '<img class="emoji-img" src="https://cdn.discordapp.com/emojis/' +
+        encodeURIComponent(e.id) + '.' + (e.animated ? 'gif' : 'png') +
+        '" alt=":' + escapeHtml(e.name || 'x') + ':" title=":' + escapeHtml(e.name || 'x') +
+        ':" loading="lazy" draggable="false">';
+    }
+    return escapeHtml(emojiToText(e));
+  }
+
+  function parseProfileStatuses(text) {
+    return String(text || '').split(/\r?\n/).map(function (l) {
+      var parts = l.split('|');
+      var t = (parts[0] || '').trim();
+      var raw = (parts.length > 1 ? (parts[1] || '').trim() : '');
+      var e = parseEmojiTag(raw) || raw;
+      return { text: t, emoji: e };
+    }).filter(function (s) { return s.text || s.emoji; });
+  }
+
+  function profileStatusesToText(list) {
+    return (list || []).map(function (s) {
+      var e = emojiToText(s.emoji);
+      return (s.text || '') + (e ? ' | ' + e : '');
+    }).join('\n');
+  }
+
+  function applyProfileStatusNow() {
+    var emoji = $('psEmoji').value.trim();
+    var text = $('psText').value.trim();
+    if (!text && !emoji) {
+      toast('Escribe texto o emoji para el Custom Status de perfil', 'err');
+      return;
+    }
+    emitAck('applyProfileStatus', { text: text, emoji: emoji })
+      .then(function (res) {
+        if (res && res.ok) toast('Custom Status de perfil aplicado', 'ok');
+        else toast((res && res.error) || 'No se pudo aplicar el Custom Status', 'err');
+      })
+      .catch(function (err) { toast(err.message, 'err'); });
+  }
+
+  function updateProfileRotationUI() {
+    var r = state.profileRotation;
+    $('psRotActive').checked = !!r.active;
+    var dot = $('psRotState').querySelector('.dot');
+    dot.classList.toggle('on', !!r.active);
+    var txt = $('psRotState').querySelector('span:last-child');
+    if (r.active && r.current) {
+      var cur = r.current;
+      txt.innerHTML = 'Rotando cada ' + r.seconds + 's · Actual: «' +
+        (cur.emoji ? emojiHtml(cur.emoji) + ' ' : '') + escapeHtml(cur.text || '') + '»' +
+        (r.total > 1 ? ' · ' + r.total + ' estados' : '');
+    } else if (r.active) {
+      txt.textContent = 'Rotando cada ' + r.seconds + 's';
+    } else {
+      txt.textContent = 'Rotación de estados de perfil inactiva';
+    }
+  }
+
+  function readProfileRotation() {
+    return {
+      statuses: parseProfileStatuses($('psList').value),
+      seconds: Math.max(5, parseInt($('psRotSeconds').value, 10) || 60)
+    };
+  }
+
+  function applyProfileRotation() {
+    var cfg = readProfileRotation();
+    if (!$('psRotActive').checked) {
+      state.profileRotation.active = false;
+      state.profileRotation.current = null;
+      lsSet(LS.profileStatus, Object.assign({ active: false }, cfg));
+      updateProfileRotationUI();
+      if (socket && socket.connected) socket.emit('stopProfileRotation');
+      toast('Rotación de estados de perfil detenida', 'info');
+      return;
+    }
+    if (!cfg.statuses.length) {
+      toast('Añade al menos un estado de perfil («texto | emoji»)', 'err');
+      $('psRotActive').checked = false;
+      updateProfileRotationUI();
+      return;
+    }
+    lsSet(LS.profileStatus, Object.assign({ active: true }, cfg));
+    emitAck('saveProfileStatuses', cfg)
+      .then(function (res) {
+        if (res && !res.ok) {
+          toast(res.error || 'No se pudo iniciar la rotación', 'err');
+          $('psRotActive').checked = false;
+        } else {
+          toast('Rotando estados de perfil cada ' + cfg.seconds + 's (' + cfg.statuses.length + ' estados)', 'ok');
+        }
+        updateProfileRotationUI();
+      })
+      .catch(function (err) { toast(err.message, 'err'); updateProfileRotationUI(); });
+  }
+
+  /* ---------------- Eventos del DOM ---------------- */
+  function bindEvents() {
+    bindImageUploads();
+    $('presenceForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!$('inEnabled').checked) {
+        toast('Activa el RPC personalizado para aplicar', 'err');
+        return;
+      }
+      var data = readAdvanced();
+      if (!data.userToken) {
+        toast('Introduce tu USER_TOKEN para conectar con Discord', 'err');
+        $('inUserToken').focus();
+        return;
+      }
+      var btn = $('btnUpdate');
+      btn.disabled = true;
+      btn.textContent = 'Actualizando…';
+      emitAck('updatePresence', data)
+        .then(function (res) {
+          if (res && res.ok) toast('Presencia actualizada en Discord', 'ok');
+          else toast('Guardado en local — Discord: ' + ((res && res.error) || 'sin conexión'), 'info');
+        })
+        .catch(function (err) { toast(err.message, 'err'); })
+        .then(function () {
+          btn.disabled = false;
+          btn.textContent = 'Actualizar estado';
+        });
+    });
+
+    // Preview en tiempo real: cualquier cambio de campo refresca la tarjeta
+    var previewEls = $('presenceForm').querySelectorAll('input, select');
+    for (var i = 0; i < previewEls.length; i++) {
+      previewEls[i].addEventListener('input', renderPreview);
+      previewEls[i].addEventListener('input', saveFormSoon);
+    }
+    $('inType').addEventListener('change', function () {
+      toggleStreamField();
+      renderPreview();
+      saveFormSoon();
+    });
+    $('inEnabled').addEventListener('change', function () {
+      setFormEnabled($('inEnabled').checked);
+      renderPreview();
+      saveFormSoon();
+    });
+
+    $('btnDisconnect').addEventListener('click', function () {
+      if (socket && socket.connected) socket.emit('disconnectRpc');
+    });
+
+    // Perfiles
+    $('btnProfileSave').addEventListener('click', saveProfile);
+    $('btnProfileDelete').addEventListener('click', function () {
+      var name = lsGet(LS.current, null);
+      if (name) deleteProfile(name);
+      else toast('No hay ningún perfil activo', 'info');
+    });
+    $('inProfileName').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); saveProfile(); }
+    });
+    $('profilesList').addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-act]');
+      if (!btn) return;
+      var name = btn.dataset.name;
+      if (btn.dataset.act === 'load') loadProfile(name);
+      else if (btn.dataset.act === 'del') deleteProfile(name);
+    });
+
+    // Rotación
+    $('btnRotApply').addEventListener('click', applyRotation);
+    $('rotActive').addEventListener('change', applyRotation);
+    $('rotSeconds').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); applyRotation(); }
+    });
+
+    // Rotación de estados
+    $('btnRotStateApply').addEventListener('click', applyStateRotation);
+    $('rotStateActive').addEventListener('change', applyStateRotation);
+    $('rotStateSeconds').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); applyStateRotation(); }
+    });
+
+    // Custom Status de perfil
+    $('btnPsApply').addEventListener('click', applyProfileStatusNow);
+    $('psText').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); applyProfileStatusNow(); }
+    });
+    $('btnPsRotApply').addEventListener('click', applyProfileRotation);
+    $('psRotActive').addEventListener('change', applyProfileRotation);
+    $('psRotSeconds').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); applyProfileRotation(); }
+    });
+
+    renderProfiles();
+  }
+
+  /* ---------------- Inicio ---------------- */
+  function init() {
+    $('clock').textContent = fmtClock(new Date());
+    setInterval(function () { $('clock').textContent = fmtClock(new Date()); }, 1000);
+    setInterval(tickElapsed, 1000);
+
+    var savedRot = lsGet(LS.rotation, null);
+    if (savedRot) {
+      $('rotSeconds').value = savedRot.seconds || 60;
+      $('rotActive').checked = !!savedRot.active;
+    }
+
+    var savedForm = lsGet(LS.form, null);
+    if (savedForm && typeof savedForm === 'object') fillForm(savedForm);
+
+    var savedStates = lsGet(LS.stateRot, null);
+    if (savedStates) {
+      $('rotStateSeconds').value = savedStates.seconds || 30;
+      $('rotStateInto').value = savedStates.into === 'details' ? 'details' : 'state';
+      if (savedStates.phrases) $('inStatePhrases').value = savedStates.phrases.join('\n');
+      $('rotStateActive').checked = !!savedStates.active;
+    }
+    updateStateRotationUI();
+
+    var savedPs = lsGet(LS.profileStatus, null);
+    if (savedPs) {
+      $('psRotSeconds').value = savedPs.seconds || 60;
+      $('psRotActive').checked = !!savedPs.active;
+      if (savedPs.statuses && savedPs.statuses.length) {
+        $('psList').value = profileStatusesToText(savedPs.statuses);
+      }
+    }
+    updateProfileRotationUI();
+
+    bindEvents();
+    loadSocketClient(function () {});
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>

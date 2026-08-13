@@ -1,0 +1,22 @@
+{
+  "name": "presence-os",
+  "version": "2.2.0",
+  "description": "Presence OS — Rich Presence de Discord (discord.js-selfbot-v13) con Socket.io y dashboard Glassmorphism. Cloud-ready para Heroku/Render/Railway.",
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "discord.js-selfbot-v13": "^3.7.1",
+    "express": "^4.21.2",
+    "multer": "^2.2.0",
+    "node-fetch": "^3.3.2",
+    "socket.io": "^4.8.1"
+  }
+}
