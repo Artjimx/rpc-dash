@@ -23,4 +23,15 @@ Abre `http://localhost:3000` y pega tu `USER_TOKEN` en el dashboard.
 | `PORT` | Puerto del servidor (bot-hosting lo define automáticamente) |
 | `USER_TOKEN` | Token de tu cuenta de Discord (alternativa al campo del dashboard) |
 
-> ⚠️ El uso de tokens de usuario para RPC infringe los Términos de Servicio de Discord; úsalo bajo tu propia responsabilidad y con una cuenta secundaria. El token nunca se guarda en el repositorio (`data/settings.json` está en `.gitignore`).
+## Despliegue en bot-hosting (import por GitHub)
+
+El token **nunca** está en el repositorio: `.env` y `data/settings.json` están en `.gitignore`, así que al importar el repo por GitHub bot-hosting recibe solo el código. El token se le pasa como variable de entorno **secreta** (solo la ve el dueño del panel):
+
+1. bot-hosting → **New Deployment** → **Application** → Source: **GitHub** → repo `Artjimx/rpc-dash`.
+2. **Runtime**: Node.js 20+. **Entry File**: `index.js`.
+3. Env Variables: añade `USER_TOKEN` = `<tu token>` (marcado como secreto).
+4. **Start**: instala dependencias desde `package.json` y abre la URL pública que te dé el panel.
+
+Nota: bot-hosting clona repos **públicos**. Si vuelves a poner el repo privado, el import/actualización por GitHub dejará de funcionar.
+
+> ⚠️ El uso de tokens de usuario para RPC infringe los Términos de Servicio de Discord; úsalo bajo tu propia responsabilidad y con una cuenta secundaria. El token nunca se guarda en el repositorio (`data/settings.json` y `.env` están en `.gitignore`).
