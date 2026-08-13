@@ -118,6 +118,27 @@ const DEFAULT_SETTINGS = {
   profileRotationSeconds: 60,
 };
 
+/* Semilla opcional: si SEED_SETTINGS_JSON existe y no hay
+   data/settings.json, se crea con esos valores al arrancar.
+   Deja la configuración (incluido USER_TOKEN) ya puesta en el host
+   sin commitear secretos al repo (la variable es secreta en el panel). */
+const SEED_SETTINGS_JSON = process.env.SEED_SETTINGS_JSON || '';
+
+function seedSettingsFromEnv() {
+  if (!SEED_SETTINGS_JSON) return;
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (!fs.existsSync(SETTINGS_FILE)) {
+      const seeded = { ...DEFAULT_SETTINGS, ...JSON.parse(SEED_SETTINGS_JSON) };
+      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(seeded, null, 2), 'utf8');
+      console.log('[SETTINGS] inicializado desde SEED_SETTINGS_JSON');
+    }
+  } catch (err) {
+    console.error('[SETTINGS] SEED_SETTINGS_JSON inválido, ignorado:', err.message);
+  }
+}
+seedSettingsFromEnv();
+
 function loadSettings() {
   try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
