@@ -22,6 +22,7 @@
       Discord reciba emoji_id y el emoji aparezca en el perfil real.
    ============================================================ */
 
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
