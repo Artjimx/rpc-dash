@@ -194,6 +194,16 @@ let connecting = null;
 let currentActivity = null;
 let rpcState = { connected: false, clientId: null, error: null, updatedAt: null };
 
+/* Auto-reconexión: Discord cierra la sesión de los selfbots a menudo
+   (sobre todo desde IPs de datacenter). Sin esto el RPC queda caído
+   hasta que reconectas a mano. Backoff exponencial con tope. */
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+let userDisconnected = false;
+const RECONNECT_BASE_MS = 5000;
+const RECONNECT_MAX_MS = 60000;
+const MAX_RECONNECT_ATTEMPTS = 10;
+
 const FIELDS = [
   'userToken', 'profileName', 'applicationId', 'name', 'type', 'details', 'state',
   'partyId', 'partySize', 'partyMax', 'startTimestamp', 'endTimestamp',
@@ -634,6 +644,12 @@ async function connectRpc(token) {
   }
   if (connecting) return connecting;
 
+  /* Una conexión nueva cancela reintentos pendientes y marca que el
+     usuario no pidió desconexión manual. */
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  reconnectAttempts = 0;
+  userDisconnected = false;
+
   connecting = (async () => {
     if (client) {
       try { client.destroy(); } catch (e) { /* noop */ }
@@ -649,6 +665,7 @@ async function connectRpc(token) {
     c.on('ready', async () => {
       rpcState.connected = true;
       rpcState.error = null;
+      reconnectAttempts = 0;
       const tag = (c.user && (c.user.tag || c.user.username || c.user.id)) || 'usuario';
       log.ok(`Conectado a Discord como ${tag} (vía USER_TOKEN)`);
 
@@ -677,11 +694,14 @@ async function connectRpc(token) {
       rpcState.connected = false;
       log.warn('Desconectado de Discord (sesión cerrada o red perdida).');
       io.emit('rpcStatus', getRpcState());
+      scheduleReconnect('sesión cerrada / red perdida');
     });
 
     c.on('invalidated', () => {
       rpcState.connected = false;
       rpcState.error = 'Sesión invalidada: el token fue revocado o rechazado por Discord.';
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      reconnectAttempts = 0;
       log.error(rpcState.error);
       io.emit('rpcStatus', getRpcState());
     });
@@ -689,6 +709,18 @@ async function connectRpc(token) {
     c.on('error', (err) => {
       log.warn(`Evento de error del cliente Discord: ${(err && err.message) || err}`);
     });
+
+    /* Registra el motivo real del cierre del WebSocket (código/razón)
+       para poder diagnosticar por qué cae la sesión. */
+    try {
+      const shard = c.ws && c.ws.shards && c.ws.shards.first();
+      if (shard && shard.ws) {
+        shard.ws.on('close', (code, reason) => {
+          const why = reason ? String(reason).slice(0, 120) : `código ${code}`;
+          log.warn(`WebSocket de Discord cerrado: ${why}`);
+        });
+      }
+    } catch (e) { /* noop */ }
 
     try {
       /* Un token inválido (o una pasarela sin respuesta) puede dejar
@@ -738,7 +770,49 @@ async function ensureRpc(token) {
   await connectRpc(token);
 }
 
+/* Programa un reintento de conexión con backoff exponencial si no hay
+   otro reintento en curso y el usuario no pidió desconexión manual. */
+function scheduleReconnect(reason) {
+  if (userDisconnected) return;
+  if (reconnectTimer) return;
+  const settings = loadSettings();
+  const token = connectedToken || (settings && settings.userToken) || USER_TOKEN_ENV;
+  if (!token) {
+    rpcState.error = 'Desconectado sin token disponible para reconectar.';
+    log.error(rpcState.error);
+    io.emit('rpcStatus', getRpcState());
+    return;
+  }
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    rpcState.error =
+      `No se pudo reconectar tras ${MAX_RECONNECT_ATTEMPTS} intentos (${reason}). ` +
+      'Revisa el USER_TOKEN o reconecta manualmente desde el dashboard.';
+    log.error(rpcState.error);
+    io.emit('rpcStatus', getRpcState());
+    return;
+  }
+  reconnectAttempts++;
+  const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, reconnectAttempts - 1), RECONNECT_MAX_MS);
+  log.warn(
+    `Reconexión a Discord en ~${Math.round(delay / 1000)}s ` +
+    `(intento ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}): ${reason}`
+  );
+  rpcState.error = `Reconectando (intento ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})…`;
+  io.emit('rpcStatus', getRpcState());
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+    try {
+      await connectRpc(token);
+    } catch (e) {
+      /* connectRpc ya registra el error */
+    }
+  }, delay);
+}
+
 function disconnectRpc() {
+  userDisconnected = true;
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  reconnectAttempts = 0;
   if (client) {
     try { client.destroy(); } catch (e) { /* noop */ }
     client = null;
@@ -1278,6 +1352,7 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 
 process.on('SIGINT', () => {
   console.log('\nCerrando servidor…');
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   try { if (client) client.destroy(); } catch (e) { /* noop */ }
   process.exit(0);
 });
