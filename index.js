@@ -439,11 +439,23 @@ async function buildRichPresence(c, a) {
 
   const appId = isValidAppId(a.applicationId) ? String(a.applicationId).trim() : '';
 
+  /* Quirk del cliente de Discord: en Streaming y Competing el
+     large_text se pinta como LÍNEA visible bajo el estado en lugar de
+     solo al pasar el cursor (hover). Para que el texto sea únicamente
+     hover se omite en esos tipos; en el resto (Playing, Watching,
+     Listening) Discord sí lo muestra solo al hover. */
+  const largeTextHoverOnly =
+    type !== ACTIVITY_TYPES.STREAMING && type !== ACTIVITY_TYPES.COMPETING;
+
   if (a.largeImageUrl) {
     const img = await resolveRichImage(c, a.largeImageUrl, appId);
     if (img) {
       try { rp.setAssetsLargeImage(img); } catch (e) { log.warn(`Imagen grande ignorada: ${e.message}`); }
-      if (a.largeImageText) rp.setAssetsLargeText(String(a.largeImageText).slice(0, 128));
+      if (a.largeImageText && largeTextHoverOnly) {
+        rp.setAssetsLargeText(String(a.largeImageText).slice(0, 128));
+      } else if (a.largeImageText && !largeTextHoverOnly) {
+        log.warn(`Large text omitido en Streaming/Competing para que no se muestre como línea (solo hover).`);
+      }
     }
   }
   if (a.smallImageUrl) {

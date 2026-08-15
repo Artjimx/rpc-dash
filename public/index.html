@@ -466,6 +466,9 @@ body{
           <span class="label">Button 2 URL</span>
           <input type="url" id="inBtn2Url" placeholder="https://…">
         </div>
+        <div class="field" id="btnWarning" style="display:none; grid-column: 1 / -1;">
+          <span class="up-hint" style="color:#ffb454">Ojo: Discord solo muestra botones en el popout del perfil (click en tu avatar) y requiere una aplicación validada en el Developer Portal. Con tipo Streaming/Competing o plataforma de consola (PS/Xbox/Samsung), los botones NO se mostrarán.</span>
+        </div>
       </div>
       <div class="actions">
         <button type="button" id="btnDisconnect" class="btn ghost">Desconectar</button>
@@ -938,6 +941,7 @@ body{
     $('inBtn2Text').value = a.button2Text || '';
     $('inBtn2Url').value = a.button2Url || '';
     toggleStreamField();
+    updateBtnWarning();
     setFormEnabled($('inEnabled').checked);
   }
 
@@ -957,6 +961,14 @@ body{
 
   function toggleStreamField() {
     $('streamField').style.display = $('inType').value === 'streaming' ? '' : 'none';
+  }
+
+  function updateBtnWarning() {
+    var hasBtn = ($('inBtn1Text').value.trim() && $('inBtn1Url').value.trim()) ||
+                 ($('inBtn2Text').value.trim() && $('inBtn2Url').value.trim());
+    var blockedType = $('inType').value === 'streaming' || $('inType').value === 'competing';
+    var blockedPlatform = ['playstation_4', 'playstation_5', 'samsung', 'xbox'].indexOf($('inPlatform').value) !== -1;
+    $('btnWarning').style.display = (hasBtn && (blockedType || blockedPlatform)) ? '' : 'none';
   }
 
   /* ---------------- Tarjeta de preview ---------------- */
@@ -1435,9 +1447,16 @@ body{
     for (var i = 0; i < previewEls.length; i++) {
       previewEls[i].addEventListener('input', renderPreview);
       previewEls[i].addEventListener('input', saveFormSoon);
+      previewEls[i].addEventListener('input', updateBtnWarning);
     }
     $('inType').addEventListener('change', function () {
       toggleStreamField();
+      updateBtnWarning();
+      renderPreview();
+      saveFormSoon();
+    });
+    $('inPlatform').addEventListener('change', function () {
+      updateBtnWarning();
       renderPreview();
       saveFormSoon();
     });
