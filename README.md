@@ -23,6 +23,7 @@ Abre `http://localhost:3000` y pega tu `USER_TOKEN` en el dashboard.
 | `SERVER_PORT` | Puerto del servidor (prioridad; bot-hosting lo asigna aquí). Respaldo: `PORT` y luego `3000` |
 | `USER_TOKEN` | Token de tu cuenta de Discord (alternativa al campo del dashboard) |
 | `SEED_SETTINGS_JSON` | JSON con los ajustes iniciales (p. ej. todo el contenido de `data/settings.json`) que se aplica si no existe el archivo en el host. Secreto en el panel |
+| `AUTO_CONNECT` | `1` (por defecto) conecta a Discord al arrancar y deja el RPC activo 24/7 desde el host sin abrir el dashboard. `0` para conectar solo manualmente |
 
 ## Despliegue en bot-hosting (import por GitHub)
 

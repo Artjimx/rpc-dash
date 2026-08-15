@@ -824,6 +824,32 @@ function disconnectRpc() {
   io.emit('rpcStatus', getRpcState());
 }
 
+/* Auto-conexión al arrancar: deja el RPC activo 24/7 desde el host,
+   sin necesidad de tener el dashboard abierto. Si AUTO_CONNECT=0 se
+   omite (útil si solo quieres conectar manualmente). */
+async function autoConnect() {
+  if (String(process.env.AUTO_CONNECT || '1').trim() === '0') {
+    log.info('AUTO_CONNECT=0: no se conecta automáticamente a Discord.');
+    return;
+  }
+  const settings = loadSettings();
+  const token = (settings && settings.userToken) || USER_TOKEN_ENV;
+  if (!token) {
+    log.warn('Auto-conexión: sin USER_TOKEN (ponlo en la variable USER_TOKEN o en el dashboard y reinicia).');
+    return;
+  }
+  /* Deja la actividad guardada lista para que el handler 'ready'
+     la re-aplique en cuanto conecte. */
+  if (!currentActivity) currentActivity = { ...settings };
+  const name = (settings && settings.name) || 'estado guardado';
+  log.info(`Auto-conexión a Discord con la actividad «${name}»…`);
+  try {
+    await connectRpc(token);
+  } catch (err) {
+    log.error(`Auto-conexión fallida: ${err.message}`);
+  }
+}
+
 async function clearActivity() {
   if (client && client.user) {
     try {
@@ -1348,6 +1374,8 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('  Cloud-ready: PORT del entorno, proxy inverso (trust proxy)');
   console.log('  Nota: Rich Presence vía USER_TOKEN (cuenta propia).');
   console.log(`  USER_TOKEN desde env: ${USER_TOKEN_ENV ? 'definido' : 'vacío — usa el campo del dashboard o variables de entorno'}`);
+  console.log('  Auto-conexión → RPC activo 24/7 desde el host');
+  autoConnect();
 });
 
 process.on('SIGINT', () => {
