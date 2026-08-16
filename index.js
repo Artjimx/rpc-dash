@@ -845,7 +845,11 @@ async function autoConnect() {
     return;
   }
   const settings = loadSettings();
-  const token = (settings && settings.userToken) || USER_TOKEN_ENV;
+  /* En el host (bot-hosting), la fuente de verdad del token es la
+     variable de entorno USER_TOKEN (secreta y persistente). Se prefiere
+     sobre settings.userToken para que un settings.json sembrado con un
+     token viejo no deje la auto-conexión en 401. */
+  const token = USER_TOKEN_ENV || (settings && settings.userToken);
   if (!token) {
     log.warn('Auto-conexión: sin USER_TOKEN (ponlo en la variable USER_TOKEN o en el dashboard y reinicia).');
     return;
