@@ -6,6 +6,11 @@ data/settings.json
 .env
 *.env
 
+# Datos del selfbot de comandos (runtime)
+data/autoresponder.json
+data/afk.json
+data/status_persist.json
+
 # Imágenes subidas en runtime
 public/uploads/
 

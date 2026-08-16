@@ -1,0 +1,15 @@
+{
+  "prefix": ".",
+  "ownerId": "",
+  "status": "",
+  "embedColor": "#5865F2",
+  "features": {
+    "autoresponder": true,
+    "snipe": true,
+    "afk": true,
+    "info": true,
+    "ai": true,
+    "plugins": true
+  },
+  "providers": {}
+}

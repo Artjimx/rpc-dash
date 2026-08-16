@@ -10,6 +10,51 @@ Dashboard web para Rich Presence de Discord con `USER_TOKEN` (selfbot) — Expre
 - Subida de imágenes locales (jpg, jpeg, png, gif, webp, avif — máx. 25 MB) o pegado con `Ctrl+V`
 - Cloud-ready: usa `process.env.PORT` y confía en proxies inversos
 
+## Selfbot de comandos (módulo `main.js`)
+El RPC y un selfbot de comandos comparten la **misma cuenta y conexión**. El sistema de comandos se engancha al cliente de Discord ya existente y **no afecta al RPC ni a la dashboard**.
+
+Estructura:
+```
+index.js                 → entrada (RPC dashboard + arranca main.js)
+main.js                  → core del selfbot de comandos (bootCommandSystem)
+config/                  → configManager.js + config.json (prefijo, ownerId, color…)
+commands/                → help, info, autoresponder, utility, automation, panel, aiMedia
+utils/                   → commandHandler, logger, permissions, helpers, statusManager, autoresponder, afk
+plugins/                 → pluginManager.js + ejemplo (extender sin tocar el core)
+providers/ + ai/         → integraciones reales (DuckDuckGo, lyrics.ovh, Pexels, YouTube, Whisper, OpenAI)
+data/                    → autoresponder.json, afk.json, status_persist.json (runtime, gitignored)
+```
+
+### Comandos
+| Comando | Descripción |
+| --- | --- |
+| `.help [cmd]` | Lista de comandos agrupada por categoría (solo texto) |
+| `.userinfo [@u]` · `.serverinfo` · `.avatar [@u]` · `.banner [@u]` | Información de usuarios/servidor |
+| `.customembed --title "…" --description "…" --color "#fff" --image <url> --thumbnail <url> --footer "…" --author "…" --timestamp --field "N|V|inline"` | Embed personalizado con botón 🗑 de auto-borrado |
+| `.snipe` | Último mensaje eliminado en el canal |
+| `.afk [motivo]` | AFK con motivo (se quita al escribir) |
+| `.calc <expresión>` | Evaluador aritmético seguro (sin `eval`) |
+| `.translate <idioma> <texto>` | Traducción (Google Translate público) |
+| `.config` | Ver/editar configuración (prefijo, owner, status) |
+| `.panel` | URL del dashboard |
+| `.search <q>` · `.lyrics <artista> - <título>` | DuckDuckGo y lyrics.ovh (sin clave) |
+| `.images <q>` · `.song <q>` · `.transcribe` · `.ai <pregunta>` | Requieren `PEXELS_API_KEY`, `YOUTUBE_API_KEY`, `OPENAI_API_KEY` (env) |
+
+### Autoresponder (solo por mención)
+- Contextos **independientes**: DM y servidor.
+- Sin keywords: responde solo cuando te mencionan (o en DM).
+- `dm add "hola 😎 estoy aquí"`, `server add "https://ejemplo.com te respondo"`…
+- `list`, `remove <n>`, `select <n>` (respuesta activa), `rotate on/off` (rotación), `on/off`.
+- Persistencia en `data/autoresponder.json`.
+
+### Proveedores (claves opcionales en Variables de entorno)
+| Variable | Servicio |
+| --- | --- |
+| `PEXELS_API_KEY` | `.images` (https://www.pexels.com/api/) |
+| `YOUTUBE_API_KEY` | `.song` (YouTube Data API v3) |
+| `OPENAI_API_KEY` | `.transcribe` (Whisper) y `.ai` (chat) |
+| `PUTER_API_KEY` | Proveedor opcional (`.ai` usa OpenAI por defecto; Puter requiere verificar `PUTER_API_BASE`) |
+
 ## Puesta en marcha
 ```bash
 npm install

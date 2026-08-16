@@ -33,6 +33,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, RichPresence, CustomStatus, Intents, Constants } from 'discord.js-selfbot-v13';
+import { bootCommandSystem } from './main.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.SERVER_PORT) || Number(process.env.PORT) || 3000;
@@ -671,7 +672,16 @@ async function connectRpc(token) {
     log.info('Conectando a la pasarela de Discord con USER_TOKEN…');
     rpcState = { connected: false, clientId: null, error: null, updatedAt: rpcState.updatedAt };
 
-    const c = new Client({ intents: [Intents.FLAGS.GUILDS] });
+    const c = new Client({
+      /* Los intents de mensajes solo alimentan al selfbot de comandos
+         (main.js); el RPC no los usa pero comparte esta conexión. */
+      intents: [
+        Intents.FLAGS.GUILDS,
+        Intents.FLAGS.GUILD_MESSAGES,
+        Intents.FLAGS.DIRECT_MESSAGES,
+        Intents.FLAGS.MESSAGE_CONTENT,
+      ],
+    });
     client = c;
 
     c.on('ready', async () => {
@@ -698,6 +708,15 @@ async function connectRpc(token) {
         }
       } catch (e) {
         log.error(`Fallo al replicar la actividad: ${e.message}`);
+      }
+
+      /* Selfbot de comandos (main.js): enganchado al mismo cliente.
+         Si algo falla, el RPC no se ve afectado. */
+      try {
+        const cmdRegistry = await bootCommandSystem(c);
+        log.ok(`Selfbot de comandos listo (${cmdRegistry ? cmdRegistry.size() : 0} comandos).`);
+      } catch (e) {
+        log.warn(`Selfbot de comandos no iniciado: ${e.message}`);
       }
       io.emit('rpcStatus', getRpcState());
     });
