@@ -140,11 +140,37 @@ const jump = {
   description: 'Genera el enlace al perfil de un usuario por su ID.',
   usage: 'jump <ID de usuario | @mención>',
   async run(message, args) {
+    const config = getConfig();
     const mention = message.mentions && message.mentions.users.first();
     const raw = mention ? mention.id : args[0];
     const id = String(raw || '').replace(/[^0-9]/g, '');
     if (!/^\d{15,20}$/.test(id)) return 'Uso: jump <ID de usuario> (o menciona al usuario).';
-    return `🔗 Perfil de <@${id}> → https://discord.com/users/${id}`;
+
+    let target = mention || null;
+    if (!target && message.client && typeof message.client.users.fetch === 'function') {
+      try {
+        target = await message.client.users.fetch(id, { force: true });
+      } catch (e) { /* usuario no encontrado */ }
+    }
+    if (!target) {
+      return `🔗 Perfil → https://discord.com/users/${id}`;
+    }
+
+    const emb = buildEmbed({
+      title: target.username,
+      color: config.embedColor,
+      thumbnail: target.displayAvatarURL({ dynamic: true, size: 256 }),
+      footer: `ID: ${target.id}`,
+      description: `🔗 **Perfil:** https://discord.com/users/${target.id}`,
+      fields: [
+        { name: 'ID', value: target.id, inline: true },
+        { name: 'Bot', value: target.bot ? 'Sí' : 'No', inline: true },
+        { name: 'Cuenta creada', value: target.createdAt ? target.createdAt.toLocaleDateString('es') : '—', inline: true },
+        { name: 'Avatar', value: target.displayAvatarURL({ dynamic: true, size: 128 }), inline: false },
+      ],
+      timestamp: true,
+    });
+    await sendWithDelete(message, [emb]);
   },
 };
 
