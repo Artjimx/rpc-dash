@@ -750,7 +750,7 @@ body{
 
   /* ---------------- Socket.io ---------------- */
   function loadSocketClient(cb) {
-    var SOCKET_URL = window.location.port === '3000' ? '' : 'http://localhost:3000';
+    var SOCKET_URL = '';
     var s = document.createElement('script');
     s.src = SOCKET_URL + '/socket.io/socket.io.js';
     s.onload = function () {
