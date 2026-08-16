@@ -34,6 +34,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, RichPresence, CustomStatus, Intents, Constants } from 'discord.js-selfbot-v13';
 import { bootCommandSystem } from './main.js';
+import { getConfig } from './config/configManager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.SERVER_PORT) || Number(process.env.PORT) || 3000;
@@ -1150,7 +1151,15 @@ function stopStateRotation() {
    ============================================================ */
 
 app.get('/health', (req, res) => {
-  res.json({ ok: true, uptime: Math.round(process.uptime()), connected: rpcState.connected, ts: new Date().toISOString() });
+  const reg = client && client._cmdRegistry;
+  const prefix = getConfig().prefix;
+  res.json({
+    ok: true,
+    uptime: Math.round(process.uptime()),
+    connected: rpcState.connected,
+    selfbot: reg ? { active: true, commands: reg.size(), prefix } : { active: false, commands: 0, prefix },
+    ts: new Date().toISOString(),
+  });
 });
 
 app.get('/api/status', (req, res) => {

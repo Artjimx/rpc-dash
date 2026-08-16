@@ -94,6 +94,7 @@ export async function bootCommandSystem(client) {
   });
 
   runPluginReady(plugins, client, ctx).catch(() => {});
+  client._cmdRegistry = registry;
   return registry;
 }
 
