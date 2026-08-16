@@ -133,6 +133,21 @@ const banner = {
   },
 };
 
+const jump = {
+  name: 'jump',
+  aliases: ['profile'],
+  category: 'información',
+  description: 'Genera el enlace al perfil de un usuario por su ID.',
+  usage: 'jump <ID de usuario | @mención>',
+  async run(message, args) {
+    const mention = message.mentions && message.mentions.users.first();
+    const raw = mention ? mention.id : args[0];
+    const id = String(raw || '').replace(/[^0-9]/g, '');
+    if (!/^\d{15,20}$/.test(id)) return 'Uso: jump <ID de usuario> (o menciona al usuario).';
+    return `🔗 Perfil de <@${id}> → https://discord.com/users/${id}`;
+  },
+};
+
 function parseEmbedFlags(args) {
   const f = parseFlags(args);
   const fields = [];
@@ -193,4 +208,4 @@ const embed = {
   aliases: ['ce'],
 };
 
-export default [userinfo, serverinfo, avatar, banner, customembed, embed];
+export default [userinfo, serverinfo, avatar, banner, jump, customembed, embed];
