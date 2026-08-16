@@ -146,9 +146,9 @@ async function respondOnMention(message, ctx) {
   const mentioned = !!(message.mentions && message.mentions.has(client.user.id));
   if (message.content.startsWith(prefix)) return;
 
-  /* AFK: responde en DM (cualquier mensaje) o por mención en servidores. */
+  /* AFK: solo en el canal donde se activó (DM: cualquier mensaje, servidor: por mención). */
   if (afk.isAFK()) {
-    if (isDm || mentioned) {
+    if ((isDm || mentioned) && afk.matchesChannel(message)) {
       if (afk.shouldNotify(message.author.id)) {
         const a = afk.getAFK();
         const reason = a.reason || 'Estoy AFK';

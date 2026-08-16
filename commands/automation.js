@@ -15,8 +15,12 @@ const afkCmd = {
   usage: 'afk [motivo]',
   async run(message, args) {
     const reason = args.join(' ').trim() || 'Estoy AFK';
-    afk.setAFK(reason);
-    return `💤 AFK activado: **${reason}**. Al escribir cualquier mensaje se quita. Quien te escriba al DM o te mencione recibirá este aviso.`;
+    afk.setAFK(reason, {
+      channelId: message.channel ? message.channel.id : '',
+      guildId: message.guild ? message.guild.id : null,
+    });
+    const where = message.channel && message.channel.name ? `#${message.channel.name}` : 'este DM';
+    return `💤 AFK activado: **${reason}**. Solo responderé en ${where}. Al escribir cualquier mensaje se quita.`;
   },
 };
 
