@@ -7,7 +7,7 @@
    1. Comandos: solo los ejecuta la propia cuenta (selfbot) y
       solo si el mensaje empieza con el prefijo configurado.
    2. Mensaje propio no-comando: quita el AFK.
-   3. Menciones de otros (o DM): primero AFK, luego autoresponder.
+   3. Menciones de otros a tu usuario: primero AFK, luego autoresponder.
    4. Plugins: reciben onMessage (pueden responder aparte).
    ============================================================ */
 
@@ -130,10 +130,8 @@ async function respondOnMention(message, ctx) {
   const client = ctx.client;
   const config = getConfig();
   const prefix = config.prefix || '.';
-  const isDm = !message.guild;
   const mentioned = !!(message.mentions && message.mentions.has(client.user.id));
-  const addressed = isDm || mentioned;
-  if (!addressed) return;
+  if (!mentioned) return;
   if (message.content.startsWith(prefix)) return;
 
   /* AFK primero. */
@@ -148,7 +146,7 @@ async function respondOnMention(message, ctx) {
     return;
   }
 
-  /* Autoresponder: solo por mención (o DM), contexto dm/server. */
+  /* Autoresponder: solo por mención, contexto dm/server. */
   const res = ar.nextResponse(ar.ctxOf(message));
   if (res && res.text) {
     try {

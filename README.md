@@ -42,7 +42,7 @@ data/                    → autoresponder.json, afk.json, status_persist.json (
 
 ### Autoresponder (solo por mención)
 - Contextos **independientes**: DM y servidor.
-- Sin keywords: responde solo cuando te mencionan (o en DM).
+- Sin keywords: responde **solo cuando te mencionan** (a tu usuario). Los mensajes propios no disparan el autoresponder.
 - `dm add "hola 😎 estoy aquí"`, `server add "https://ejemplo.com te respondo"`…
 - `list`, `remove <n>`, `select <n>` (respuesta activa), `rotate on/off` (rotación), `on/off`.
 - Persistencia en `data/autoresponder.json`.

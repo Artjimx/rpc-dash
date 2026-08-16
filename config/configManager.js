@@ -32,11 +32,13 @@ let state = null;
 
 function deepMerge(base, extra) {
   if (extra && typeof extra === 'object' && !Array.isArray(extra)) {
+    const out = (base && typeof base === 'object' && !Array.isArray(base)) ? base : {};
     for (const k of Object.keys(extra)) {
-      base[k] = deepMerge(base[k], extra[k]);
+      out[k] = deepMerge(base ? base[k] : undefined, extra[k]);
     }
+    return out;
   }
-  return base;
+  return extra === undefined ? base : extra;
 }
 
 export function loadConfig() {
