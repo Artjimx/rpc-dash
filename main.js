@@ -7,7 +7,8 @@
    1. Comandos: solo los ejecuta la propia cuenta (selfbot) y
       solo si el mensaje empieza con el prefijo configurado.
    2. Mensaje propio no-comando: quita el AFK.
-   3. Menciones de otros a tu usuario: primero AFK, luego autoresponder.
+   3. Mensajes de otros: en DM (AFK) o por mención a tu usuario,
+      primero AFK (avisa el motivo), luego autoresponder.
    4. Plugins: reciben onMessage (pueden responder aparte).
    ============================================================ */
 
@@ -108,16 +109,18 @@ async function handleMessage(message, ctx, plugins) {
     return;
   }
 
-  /* 2) Mensaje propio no-comando → quita AFK. */
+  /* 2) Mensaje propio no-comando → sale del AFK y notifica. */
   if (own) {
     if (afk.isAFK()) {
-      const cleared = afk.clearAFK();
-      if (cleared) log.info('AFK desactivado (mensaje propio).');
+      if (afk.clearAFK()) {
+        log.info('AFK desactivado (mensaje propio).');
+        await notifyAfkExit(message);
+      }
     }
     return;
   }
 
-  /* 3) AFK + autoresponder por mención. */
+  /* 3) AFK + autoresponder. */
   if (config.features && config.features.autoresponder === false) {
     await runPlugins(message, ctx, plugins);
     return;
@@ -126,27 +129,39 @@ async function handleMessage(message, ctx, plugins) {
   await runPlugins(message, ctx, plugins);
 }
 
+/* Notifica la salida del AFK y borra el aviso a los 6 segundos. */
+async function notifyAfkExit(message) {
+  try {
+    const sent = await message.reply('✅ Saliste del modo AFK.');
+    setTimeout(() => {
+      sent.delete().catch(() => {});
+    }, 6000);
+  } catch (e) { /* noop */ }
+}
+
 async function respondOnMention(message, ctx) {
   const client = ctx.client;
-  const config = getConfig();
-  const prefix = config.prefix || '.';
+  const prefix = getConfig().prefix || '.';
+  const isDm = !message.guild;
   const mentioned = !!(message.mentions && message.mentions.has(client.user.id));
-  if (!mentioned) return;
   if (message.content.startsWith(prefix)) return;
 
-  /* AFK primero. */
+  /* AFK: responde en DM (cualquier mensaje) o por mención en servidores. */
   if (afk.isAFK()) {
-    if (afk.shouldNotify(message.author.id)) {
-      const a = afk.getAFK();
-      const reason = a.reason || 'Estoy AFK';
-      try {
-        await message.reply(`💤 **AFK** — ${reason} (desde hace ${afk.sinceText()})`);
-      } catch (e) { /* noop */ }
+    if (isDm || mentioned) {
+      if (afk.shouldNotify(message.author.id)) {
+        const a = afk.getAFK();
+        const reason = a.reason || 'Estoy AFK';
+        try {
+          await message.reply(`💤 **AFK** — ${reason} (desde hace ${afk.sinceText()}). Te respondo cuando vuelva.`);
+        } catch (e) { /* noop */ }
+      }
     }
     return;
   }
 
   /* Autoresponder: solo por mención, contexto dm/server. */
+  if (!mentioned) return;
   const res = ar.nextResponse(ar.ctxOf(message));
   if (res && res.text) {
     try {

@@ -16,7 +16,7 @@ const afkCmd = {
   async run(message, args) {
     const reason = args.join(' ').trim() || 'Estoy AFK';
     afk.setAFK(reason);
-    return `💤 AFK activado: **${reason}**. Al escribir cualquier mensaje se quita.`;
+    return `💤 AFK activado: **${reason}**. Al escribir cualquier mensaje se quita. Quien te escriba al DM o te mencione recibirá este aviso.`;
   },
 };
 

@@ -2,8 +2,8 @@
    utils/afk.js
    Estado AFK persistente (data/afk.json).
    - .afk [motivo] lo activa; cualquier mensaje propio lo quita.
-   - Al ser mencionado en AFK se responde (1 vez por usuario
-     cada 10 min para evitar spam).
+   - Al estar AFK se responde (1 vez por usuario cada 10 min):
+     en DM con cualquier mensaje y en servidores por mención.
    ============================================================ */
 
 import fs from 'node:fs';
