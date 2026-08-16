@@ -29,12 +29,10 @@ data/                    → autoresponder.json, afk.json, status_persist.json (
 | Comando | Descripción |
 | --- | --- |
 | `.help [cmd]` | Lista de comandos agrupada por categoría (solo texto) |
-| `.userinfo [@u]` · `.serverinfo` · `.avatar [@u]` · `.banner [@u]` | Información de usuarios/servidor |
-| `.customembed --title "…" --description "…" --color "#fff" --image <url> --thumbnail <url> --footer "…" --author "…" --timestamp --field "N|V|inline"` | Embed personalizado con botón 🗑 de auto-borrado |
+| `.userinfo [@u]` · `.serverinfo` · `.avatar [@u]` · `.banner [@u]` · `.jump <id>` | Información de usuarios/servidor y enlace al perfil |
 | `.snipe` | Último mensaje eliminado en el canal |
+| `.purge [cantidad]` | Elimina tus mensajes en el canal (máx. 100, respetando rate limit) |
 | `.afk [motivo]` | AFK con motivo (se quita al escribir) |
-| `.calc <expresión>` | Evaluador aritmético seguro (sin `eval`) |
-| `.translate <idioma> <texto>` | Traducción (Google Translate público) |
 | `.config` | Ver/editar configuración (prefijo, owner, status) |
 | `.panel` | URL del dashboard |
 | `.search <q>` · `.lyrics <artista> - <título>` | DuckDuckGo y lyrics.ovh (sin clave) |

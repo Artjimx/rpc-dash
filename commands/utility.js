@@ -1,10 +1,12 @@
 /* ============================================================
    commands/utility.js
-   Utilidades: snipe (mensajes eliminados), calc (aritmética
-   segura), translate (Google Translate, endpoint público gtx).
+   Utilidades: snipe (mensajes eliminados), purge (borra tus
+   mensajes respetando el rate limit de eliminación).
    ============================================================ */
 
-import { sendText, safeCalc, formatNumber, truncate } from '../utils/helpers.js';
+import { truncate } from '../utils/helpers.js';
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const snipe = {
   name: 'snipe',
@@ -24,39 +26,32 @@ const snipe = {
   },
 };
 
-const calc = {
-  name: 'calc',
-  aliases: ['calcular', 'math'],
+const purge = {
+  name: 'purge',
+  aliases: ['clean'],
   category: 'utilidad',
-  description: 'Evalúa una expresión aritmética de forma segura.',
-  usage: 'calc <expresión> (ej: 2*(3+4)^2)',
+  description: 'Elimina tus mensajes en el canal (máx. 100, con rate limit).',
+  usage: 'purge [cantidad]',
   async run(message, args) {
-    if (!args.length) return 'Uso: calc <expresión> — ejemplo: calc (2+3)*4%3';
-    const expr = args.join(' ');
-    const result = safeCalc(expr);
-    return `🧮 ${expr} = **${formatNumber(result)}**`;
+    const n = Math.min(Math.max(parseInt(args[0], 10) || 100, 1), 100);
+    const channel = message.channel;
+    let fetched;
+    try {
+      fetched = await channel.messages.fetch({ limit: Math.min(n + 1, 100) });
+    } catch (e) {
+      return `No se pudieron obtener mensajes: ${e.message}`;
+    }
+    const own = fetched.filter((m) => m.author && m.author.id === message.client.user.id).first(n);
+    let removed = 0;
+    for (const m of own) {
+      try {
+        await m.delete();
+        removed++;
+      } catch (e) { /* rate limit u otro error */ }
+      await wait(1100);
+    }
+    return `🧹 Purge: eliminados **${removed}** de tus mensajes en ${channel.name || 'este canal'}.`;
   },
 };
 
-const translate = {
-  name: 'translate',
-  aliases: ['traducir', 'tr'],
-  category: 'utilidad',
-  description: 'Traduce texto a otro idioma (Google Translate público).',
-  usage: 'translate <idioma> <texto>',
-  async run(message, args) {
-    const lang = (args[0] || '').toLowerCase().replace(/^--?/, '');
-    const text = args.slice(1).join(' ').trim();
-    if (!/^[a-z]{2,5}$/.test(lang)) return 'Uso: translate <idioma> <texto> — ejemplo: translate en "hola mundo"';
-    if (!text) return 'Falta el texto a traducir.';
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encodeURIComponent(text)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Translate: HTTP ${res.status}`);
-    const data = await res.json();
-    const translated = (data[0] || []).map((seg) => seg && seg[0]).join('').trim();
-    if (!translated) return 'No se pudo traducir el texto.';
-    return `🌐 **${lang.toUpperCase()}** → ${truncate(translated, 1900)}`;
-  },
-};
-
-export default [snipe, calc, translate];
+export default [snipe, purge];

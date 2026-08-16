@@ -1,14 +1,12 @@
 /* ============================================================
    commands/info.js
-   Comandos de información y personalización de mensajes.
+   Comandos de información.
    SOLO texto bien formateado (sin embeds, es un selfbot).
    - userinfo / avatar / banner / jump
    - serverinfo (alias guildinfo)
-   - customembed / embed (mensaje formateado con botón 🗑)
    ============================================================ */
 
-import { getConfig } from '../config/configManager.js';
-import { parseFlags, truncate } from '../utils/helpers.js';
+import { truncate } from '../utils/helpers.js';
 
 function resolveTarget(message, args) {
   const mention = message.mentions && message.mentions.users.first();
@@ -117,81 +115,38 @@ const jump = {
     const id = String(raw || '').replace(/[^0-9]/g, '');
     if (!/^\d{15,20}$/.test(id)) return 'Uso: jump <ID de usuario> (o menciona al usuario).';
 
+    const client = message.client;
     let target = mention || null;
-    if (!target && message.client && typeof message.client.users.fetch === 'function') {
-      try {
-        target = await message.client.users.fetch(id, { force: true });
-      } catch (e) { /* usuario no encontrado */ }
+    if (!target && client) {
+      /* 1) caché global de usuarios. */
+      if (client.users && client.users.cache) {
+        target = client.users.cache.get(id) || null;
+      }
+      /* 2) miembro del servidor actual (trae user con datos). */
+      if (!target && message.guild && message.guild.members && typeof message.guild.members.fetch === 'function') {
+        try {
+          const m = await message.guild.members.fetch(id);
+          if (m && m.user) target = m.user;
+        } catch (e) { /* no es miembro de este servidor */ }
+      }
+      /* 3) último recurso: API directa. */
+      if (!target && client.users && typeof client.users.fetch === 'function') {
+        try {
+          target = await client.users.fetch(id, { force: true });
+        } catch (e) { /* usuario no encontrado */ }
+      }
     }
 
     const lines = [`🔗 **Perfil:** https://discord.com/users/${id}`];
     if (target) {
-      lines.push(`👤 **${target.username}** · 🆔 \`${target.id}\``);
+      lines.push(`👤 **${target.username || 'Usuario'}** · 🆔 \`${target.id}\``);
       lines.push(`🤖 Bot: ${target.bot ? 'Sí' : 'No'} · 📅 Cuenta creada: ${target.createdAt ? target.createdAt.toLocaleDateString('es') : '—'}`);
-      lines.push(`🖼️ Avatar: ${target.displayAvatarURL({ dynamic: true, size: 128 })}`);
+      if (target.displayAvatarURL) lines.push(`🖼️ Avatar: ${target.displayAvatarURL({ dynamic: true, size: 128 })}`);
+    } else {
+      lines.push('ℹ️ Usuario no disponible en caché (sin servidores compartidos) — solo enlace.');
     }
     return lines.join('\n');
   },
 };
 
-function parseEmbedFlags(args) {
-  const f = parseFlags(args);
-  const fields = [];
-  for (const raw of f._fields) {
-    const parts = String(raw).split('|');
-    fields.push({
-      name: (parts[0] || '').trim(),
-      value: (parts[1] || '').trim(),
-      inline: (parts[2] || '').trim().toLowerCase() === 'inline' || parts[2] === 'true',
-    });
-  }
-  return {
-    title: f.title || f.t,
-    description: f.description || f.desc || f.d,
-    color: f.color || f.c,
-    image: f.image || f.img || f.i,
-    thumbnail: f.thumbnail || f.thumb,
-    footer: f.footer,
-    author: f.author,
-    timestamp: !!f.timestamp || !!f.time,
-    fields,
-  };
-}
-
-const customembed = {
-  name: 'customembed',
-  aliases: ['embed', 'ce'],
-  category: 'información',
-  description: 'Crea un mensaje personalizado bien formateado.',
-  usage: 'customembed --title "T" --description "D" --image URL --thumbnail URL --footer "F" --author "A" --timestamp --field "N|V|inline"',
-  async run(message, args) {
-    const config = getConfig();
-    if (!args.length) {
-      return `Uso: ${config.prefix}customembed --title "Título" --description "Descripción" --image <url> --thumbnail <url> --footer "Pie" --author "Autor" --timestamp --field "Nombre|Valor|inline"`;
-    }
-    const p = parseEmbedFlags(args);
-    if (!p.title && !p.description && !p.image) {
-      return 'Necesitas al menos --title, --description o --image.';
-    }
-    const lines = [];
-    if (p.author) lines.push(`**${p.author}**`);
-    if (p.title) lines.push(`**${p.title}**`);
-    if (p.description) lines.push(p.description);
-    for (const f of p.fields) {
-      if (f && f.name) lines.push(`\n**${f.name}**\n${f.value || ''}`);
-    }
-    if (p.thumbnail) lines.push(`\n🖼️ Miniatura: ${p.thumbnail}`);
-    if (p.image) lines.push(`🖼️ Imagen: ${p.image}`);
-    if (p.timestamp) lines.push(`\n🕒 ${new Date().toLocaleString('es')}`);
-    if (p.footer) lines.push(`_${p.footer}_`);
-    return lines.join('\n') || 'Mensaje vacío.';
-  },
-};
-
-const embed = {
-  ...customembed,
-  name: 'embed',
-  aliases: ['ce'],
-};
-
-export default [userinfo, serverinfo, avatar, banner, jump, customembed, embed];
+export default [userinfo, serverinfo, avatar, banner, jump];
