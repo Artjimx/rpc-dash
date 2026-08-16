@@ -3,10 +3,43 @@
    Configuración y acceso a la dashboard.
    - config: ver/editar la configuración centralizada.
    - panel: muestra la URL del dashboard (el mismo servidor).
+   - status: estado del selfbot y la conexión a Discord.
    ============================================================ */
 
 import { getConfig, setConfig, saveConfig } from '../config/configManager.js';
-import { sendText, truncate } from '../utils/helpers.js';
+import { truncate } from '../utils/helpers.js';
+
+function fmtUptime(s) {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  if (h > 0) return `${h}h ${m}m ${sec}s`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+const statusCmd = {
+  name: 'status',
+  aliases: ['st', 'estado'],
+  category: 'panel',
+  description: 'Estado del selfbot y la conexión a Discord.',
+  usage: 'status',
+  async run(message, args, ctx) {
+    const client = ctx.client;
+    const config = getConfig();
+    const reg = ctx.registry;
+    const connected = !!(client && (client.readyAt || client.user));
+    const hosted = !!(process.env.SERVER_PORT || process.env.PORT);
+    const lines = [];
+    lines.push('**Presence OS — Estado**');
+    lines.push(`🤖 Cuenta: ${client && client.user ? (client.user.tag || client.user.username) : '—'}`);
+    lines.push(`📡 Discord: ${connected ? '🟢 conectado' : '🔴 desconectado'}`);
+    lines.push(`⚙️ Selfbot: 🟢 activo · ${reg ? reg.size() : 0} comandos · prefijo «${config.prefix}»`);
+    lines.push(`⏱️ Uptime: ${fmtUptime(process.uptime())}`);
+    lines.push(`🌐 Host: ${hosted ? 'bot-hosting (dashboard desde el panel del host)' : `localhost:${process.env.PORT || 3000}`}`);
+    return lines.join('\n');
+  },
+};
 
 const configCmd = {
   name: 'config',
@@ -74,4 +107,4 @@ const panel = {
   },
 };
 
-export default [configCmd, panel];
+export default [configCmd, statusCmd, panel];
