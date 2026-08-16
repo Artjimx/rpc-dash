@@ -10,6 +10,7 @@
 
 import { getConfig } from '../config/configManager.js';
 import { isOwner } from './permissions.js';
+import { trackSent } from './helpers.js';
 
 export function newCommandRegistry() {
   const commands = new Map();
@@ -61,23 +62,33 @@ export async function dispatch(client, message, ctx) {
   const cmd = ctx.registry.get(parsed.name);
   if (!cmd) {
     try {
-      await message.reply(`Comando desconocido «${parsed.name}». Usa ${prefix}help para ver la lista.`).catch(() => {});
+      const m = await message.reply(`Comando desconocido «${parsed.name}». Usa ${prefix}help para ver la lista.`).catch(() => {});
+      trackSent(client, m);
     } catch (e) { /* noop */ }
     return;
   }
 
   if (cmd.ownerOnly && !isOwner(client, message, config)) {
-    try { await message.reply('No tienes permisos para usar este comando.').catch(() => {}); } catch (e) { /* noop */ }
+    try {
+      const m = await message.reply('No tienes permisos para usar este comando.').catch(() => {});
+      trackSent(client, m);
+    } catch (e) { /* noop */ }
     return;
   }
 
   try {
     const out = await cmd.run(message, parsed.args, ctx);
     if (out && typeof out === 'string') {
-      try { await message.reply(out).catch(() => {}); } catch (e) { /* noop */ }
+      try {
+        const m = await message.reply(out).catch(() => {});
+        trackSent(client, m);
+      } catch (e) { /* noop */ }
     }
   } catch (err) {
     const msg = (err && err.message) || 'Error desconocido';
-    try { await message.reply(`⚠️ ${msg}`).catch(() => {}); } catch (e) { /* noop */ }
+    try {
+      const m = await message.reply(`⚠️ ${msg}`).catch(() => {});
+      trackSent(client, m);
+    } catch (e) { /* noop */ }
   }
 }

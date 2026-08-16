@@ -14,6 +14,23 @@ export function truncate(text, max) {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
 
+/* Registra un mensaje que el propio bot envió, para que no cuente
+   como "mensaje propio escrito por el usuario" (p.ej. al quitar AFK). */
+export function trackSent(client, msg) {
+  if (!client || !msg || !msg.id) return;
+  if (!client._selfSent) client._selfSent = new Set();
+  client._selfSent.add(msg.id);
+  if (client._selfSent.size > 500) client._selfSent.clear();
+}
+
+export function isSelfSent(client, msg) {
+  return !!client && !!client._selfSent && msg && client._selfSent.has(msg.id);
+}
+
+export function clearTracked(client) {
+  if (client && client._selfSent) client._selfSent.clear();
+}
+
 export function embedColor(color) {
   if (!color) return null;
   const c = String(color).trim();

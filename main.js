@@ -19,6 +19,7 @@ import { getConfig } from './config/configManager.js';
 import { newCommandRegistry, dispatch } from './utils/commandHandler.js';
 import { log } from './utils/logger.js';
 import { isOwner } from './utils/permissions.js';
+import { trackSent, isSelfSent } from './utils/helpers.js';
 import * as ar from './utils/autoresponder.js';
 import * as afk from './utils/afk.js';
 import { initStatusManager } from './utils/statusManager.js';
@@ -109,9 +110,11 @@ async function handleMessage(message, ctx, plugins) {
     return;
   }
 
-  /* 2) Mensaje propio no-comando → sale del AFK y notifica. */
+  /* 2) Mensaje propio no-comando → sale del AFK y notifica.
+        Ignora mensajes enviados por el propio bot (respuestas),
+        para que no desactiven el AFK solos. */
   if (own) {
-    if (afk.isAFK()) {
+    if (!isSelfSent(client, message) && afk.isAFK()) {
       if (afk.clearAFK()) {
         log.info('AFK desactivado (mensaje propio).');
         await notifyAfkExit(message);
@@ -133,6 +136,7 @@ async function handleMessage(message, ctx, plugins) {
 async function notifyAfkExit(message) {
   try {
     const sent = await message.reply('✅ Saliste del modo AFK.');
+    trackSent(message.client, sent);
     setTimeout(() => {
       sent.delete().catch(() => {});
     }, 6000);
@@ -153,7 +157,8 @@ async function respondOnMention(message, ctx) {
         const a = afk.getAFK();
         const reason = a.reason || 'Estoy AFK';
         try {
-          await message.reply(`💤 **AFK** — ${reason} (desde hace ${afk.sinceText()}). Te respondo cuando vuelva.`);
+          const sent = await message.reply(`💤 **AFK** — ${reason} (desde hace ${afk.sinceText()}). Te respondo cuando vuelva.`);
+          trackSent(client, sent);
         } catch (e) { /* noop */ }
       }
     }
@@ -165,7 +170,8 @@ async function respondOnMention(message, ctx) {
   const res = ar.nextResponse(ar.ctxOf(message));
   if (res && res.text) {
     try {
-      await message.reply(res.text);
+      const sent = await message.reply(res.text);
+      trackSent(client, sent);
     } catch (e) {
       log.warn(`Autoresponder: ${e.message}`);
     }
