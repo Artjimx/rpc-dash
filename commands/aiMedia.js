@@ -1,12 +1,12 @@
 /* ============================================================
    commands/aiMedia.js
-   IA y multimedia con proveedores reales (sin inventar APIs):
+   IA y multimedia con proveedores reales:
    - search: DuckDuckGo Instant Answer (sin clave)
    - lyrics: lyrics.ovh (sin clave)
    - images: Pexels (requiere PEXELS_API_KEY)
    - song: YouTube Data API (requiere YOUTUBE_API_KEY)
    - transcribe: OpenAI Whisper (requiere OPENAI_API_KEY)
-   - ai: OpenAI chat (requiere OPENAI_API_KEY)
+   - ai: Puter.js (gratis, requiere PUTER_AUTH_TOKEN) o OpenAI
    ============================================================ */
 
 import { webSearch } from '../ai/searchService.js';
@@ -14,7 +14,8 @@ import { searchImages } from '../ai/imageSearchService.js';
 import { searchSongs, getLyrics } from '../ai/musicService.js';
 import { transcribe } from '../ai/transcriptionService.js';
 import { openAiChat } from '../providers/chatProvider.js';
-import { sendText, truncate } from '../utils/helpers.js';
+import { puterChat } from '../providers/puterProvider.js';
+import { truncate } from '../utils/helpers.js';
 
 const search = {
   name: 'search',
@@ -105,16 +106,36 @@ const ai = {
   name: 'ai',
   aliases: ['ask', 'chat', 'gpt'],
   category: 'ia/media',
-  description: 'Chatea con IA (OpenAI). Requiere OPENAI_API_KEY.',
-  usage: 'ai <pregunta>',
+  description: 'Chatea con IA (Puter.js gratis o OpenAI).',
+  usage: 'ai <pregunta> · ai <modelo> <pregunta>',
   async run(message, args) {
     if (!args.length) return 'Uso: ai <pregunta>';
-    const answer = await openAiChat([
-      { role: 'system', content: 'Eres un asistente útil y conciso. Responde en el idioma del usuario.' },
-      { role: 'user', content: args.join(' ') },
-    ]);
-    if (!answer) return 'No hubo respuesta de la IA.';
-    return truncate(answer, 1990);
+    const models = ['openai/gpt-5.5', 'anthropic/claude-opus-5', 'google/gemini-3.6-flash', 'deepseek/deepseek-v4-pro', 'meta-llama/llama-4-maverick'];
+    let model = null;
+    let prompt = args.join(' ');
+    const firstArg = args[0].toLowerCase();
+    for (const m of models) {
+      if (firstArg === m.split('/').pop() || firstArg === m) { model = m; prompt = args.slice(1).join(' '); break; }
+    }
+    if (!prompt) return 'Escribe tu pregunta.';
+    try {
+      if (process.env.PUTER_AUTH_TOKEN) {
+        const answer = await puterChat([{ role: 'user', content: prompt }], model || 'openai/gpt-5.5');
+        if (!answer) return 'Sin respuesta de la IA.';
+        return truncate(answer, 1990);
+      }
+      if (process.env.OPENAI_API_KEY) {
+        const answer = await openAiChat([
+          { role: 'system', content: 'Eres un asistente útil y conciso. Responde en el idioma del usuario.' },
+          { role: 'user', content: prompt },
+        ]);
+        if (!answer) return 'Sin respuesta de la IA.';
+        return truncate(answer, 1990);
+      }
+      return 'Configura PUTER_AUTH_TOKEN (gratis en puter.com) o OPENAI_API_KEY.';
+    } catch (e) {
+      return `⚠️ Error de IA: ${e.message}`;
+    }
   },
 };
 

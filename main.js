@@ -24,6 +24,7 @@ import * as ar from './utils/autoresponder.js';
 import * as afk from './utils/afk.js';
 import { initStatusManager } from './utils/statusManager.js';
 import { loadPlugins, runPluginReady } from './plugins/pluginManager.js';
+import { bootReminders } from './commands/automation.js';
 
 import cmdHelp from './commands/help.js';
 import cmdInfo from './commands/info.js';
@@ -61,6 +62,7 @@ export async function bootCommandSystem(client) {
   const ctx = { client, registry };
   initStatusManager(client, config);
   const plugins = await loadPlugins(__dirname);
+  bootReminders(client);
 
   /* Cache de snipe (mensajes eliminados), por canal. */
   client._snipeCache = new Map();
@@ -113,12 +115,19 @@ async function handleMessage(message, ctx, plugins) {
 
   /* 2) Mensaje propio no-comando → sale del AFK y notifica.
         Ignora mensajes enviados por el propio bot (respuestas),
-        para que no desactiven el AFK solos. */
+        para que no desactiven el AFK solos.
+        También ignora mensajes dentro de los 3s posteriores a la
+        activación del AFK (gracia para evitar race condition con
+        messageCreate del propio bot). */
   if (own) {
-    if (!isSelfSent(client, message) && afk.isAFK()) {
-      if (afk.clearAFK()) {
-        log.info('AFK desactivado (mensaje propio).');
-        await notifyAfkExit(message);
+    if (afk.isAFK()) {
+      const afkState = afk.getAFK();
+      const sinceActivation = Date.now() - (afkState.since || 0);
+      if (!isSelfSent(client, message) && sinceActivation > 3000) {
+        if (afk.clearAFK()) {
+          log.info('AFK desactivado (mensaje propio).');
+          await notifyAfkExit(message);
+        }
       }
     }
     return;
