@@ -114,38 +114,7 @@ const jump = {
     const raw = mention ? mention.id : args[0];
     const id = String(raw || '').replace(/[^0-9]/g, '');
     if (!/^\d{15,20}$/.test(id)) return 'Uso: jump <ID de usuario> (o menciona al usuario).';
-
-    const client = message.client;
-    let target = mention || null;
-    if (!target && client) {
-      /* 1) caché global de usuarios. */
-      if (client.users && client.users.cache) {
-        target = client.users.cache.get(id) || null;
-      }
-      /* 2) miembro del servidor actual (trae user con datos). */
-      if (!target && message.guild && message.guild.members && typeof message.guild.members.fetch === 'function') {
-        try {
-          const m = await message.guild.members.fetch(id);
-          if (m && m.user) target = m.user;
-        } catch (e) { /* no es miembro de este servidor */ }
-      }
-      /* 3) último recurso: API directa. */
-      if (!target && client.users && typeof client.users.fetch === 'function') {
-        try {
-          target = await client.users.fetch(id, { force: true });
-        } catch (e) { /* usuario no encontrado */ }
-      }
-    }
-
-    const lines = [`🔗 **Perfil:** https://discord.com/users/${id}`];
-    if (target) {
-      lines.push(`👤 **${target.username || 'Usuario'}** · 🆔 \`${target.id}\``);
-      lines.push(`🤖 Bot: ${target.bot ? 'Sí' : 'No'} · 📅 Cuenta creada: ${target.createdAt ? target.createdAt.toLocaleDateString('es') : '—'}`);
-      if (target.displayAvatarURL) lines.push(`🖼️ Avatar: ${target.displayAvatarURL({ dynamic: true, size: 128 })}`);
-    } else {
-      lines.push('ℹ️ Usuario no disponible en caché (sin servidores compartidos) — solo enlace.');
-    }
-    return lines.join('\n');
+    return `🔗 https://discord.com/users/${id}`;
   },
 };
 

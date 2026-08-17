@@ -22,6 +22,7 @@ import { isOwner } from './utils/permissions.js';
 import { trackSent, isSelfSent } from './utils/helpers.js';
 import * as ar from './utils/autoresponder.js';
 import * as afk from './utils/afk.js';
+import * as ts from './utils/triggerStore.js';
 import { initStatusManager } from './utils/statusManager.js';
 import { loadPlugins, runPluginReady } from './plugins/pluginManager.js';
 import { bootReminders } from './commands/automation.js';
@@ -29,6 +30,7 @@ import { bootReminders } from './commands/automation.js';
 import cmdHelp from './commands/help.js';
 import cmdInfo from './commands/info.js';
 import cmdAutoresponder from './commands/autoresponder.js';
+import cmdTriggers from './commands/triggers.js';
 import cmdUtility from './commands/utility.js';
 import cmdAutomation from './commands/automation.js';
 import cmdPanel from './commands/panel.js';
@@ -52,7 +54,7 @@ export async function bootCommandSystem(client) {
   const config = getConfig();
   const registry = newCommandRegistry();
 
-  const modules = [cmdHelp, cmdInfo, cmdAutoresponder, cmdUtility, cmdAutomation, cmdPanel, cmdAiMedia];
+  const modules = [cmdHelp, cmdInfo, cmdAutoresponder, cmdTriggers, cmdUtility, cmdAutomation, cmdPanel, cmdAiMedia];
   for (const mod of modules) {
     for (const cmd of collectCommands(mod)) {
       registry.register(cmd);
@@ -176,7 +178,17 @@ async function respondOnMention(message, ctx) {
   }
 
   /* Autoresponder: solo por mención, contexto dm/server. */
-  if (!mentioned) return;
+  if (!mentioned) {
+    // Triggers: disparador por texto (no necesita mención)
+    const match = ts.findMatch(message.content);
+    if (match) {
+      try {
+        const sent = await message.channel.send(match.response);
+        trackSent(client, sent);
+      } catch (e) { /* noop */ }
+    }
+    return;
+  }
   const res = ar.nextResponse(ar.ctxOf(message));
   if (res && res.text) {
     try {
