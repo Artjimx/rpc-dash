@@ -1,12 +1,13 @@
 /* ============================================================
    commands/aiMedia.js
    IA y multimedia con proveedores reales:
+   - imgsearch: búsqueda de imágenes (DuckDuckGo, sin clave)
    - search: DuckDuckGo Instant Answer (sin clave)
    - lyrics: lyrics.ovh (sin clave)
    - images: Pexels (requiere PEXELS_API_KEY)
    - song: YouTube Data API (requiere YOUTUBE_API_KEY)
    - transcribe: OpenAI Whisper (requiere OPENAI_API_KEY)
-   - ai: Puter.js (gratis, requiere PUTER_AUTH_TOKEN) o OpenAI
+   - ai: Puter.js (gratis con cuenta) / OpenAI
    ============================================================ */
 
 import { webSearch } from '../ai/searchService.js';
@@ -15,7 +16,23 @@ import { searchSongs, getLyrics } from '../ai/musicService.js';
 import { transcribe } from '../ai/transcriptionService.js';
 import { openAiChat } from '../providers/chatProvider.js';
 import { puterChat } from '../providers/puterProvider.js';
+import { freeImageSearch } from '../providers/freeImageSearch.js';
 import { truncate } from '../utils/helpers.js';
+
+const imgsearch = {
+  name: 'imgsearch',
+  aliases: ['isearch', 'buscarimg', 'buscarimagen'],
+  category: 'ia/media',
+  description: 'Busca imágenes por texto (DuckDuckGo, sin clave).',
+  usage: 'imgsearch <consulta>',
+  async run(message, args) {
+    if (!args.length) return 'Uso: imgsearch <consulta>';
+    const results = await freeImageSearch(args.join(' '), 3);
+    if (!results.length) return 'Sin imágenes para esa búsqueda.';
+    const lines = results.map((r, i) => `${i + 1}. ${r.url}\n   ${r.title ? truncate(r.title, 60) : ''}`);
+    return truncate(`🖼️ **${args.join(' ')}**\n${lines.join('\n')}`, 1900);
+  },
+};
 
 const search = {
   name: 'search',
@@ -107,36 +124,43 @@ const ai = {
   aliases: ['ask', 'chat', 'gpt'],
   category: 'ia/media',
   description: 'Chatea con IA (Puter.js gratis o OpenAI).',
-  usage: 'ai <pregunta> · ai <modelo> <pregunta>',
+  usage: 'ai <pregunta>',
   async run(message, args) {
     if (!args.length) return 'Uso: ai <pregunta>';
-    const models = ['openai/gpt-5.5', 'anthropic/claude-opus-5', 'google/gemini-3.6-flash', 'deepseek/deepseek-v4-pro', 'meta-llama/llama-4-maverick'];
-    let model = null;
-    let prompt = args.join(' ');
-    const firstArg = args[0].toLowerCase();
-    for (const m of models) {
-      if (firstArg === m.split('/').pop() || firstArg === m) { model = m; prompt = args.slice(1).join(' '); break; }
+    const prompt = args.join(' ');
+    // Puter.js (gratis, requiere token de puter.com)
+    if (process.env.PUTER_AUTH_TOKEN) {
+      try {
+        const answer = await puterChat([
+          { role: 'user', content: prompt },
+        ]);
+        if (answer) return truncate(answer, 1990);
+      } catch (e) { /* intenta fallback */ }
     }
-    if (!prompt) return 'Escribe tu pregunta.';
-    try {
-      if (process.env.PUTER_AUTH_TOKEN) {
-        const answer = await puterChat([{ role: 'user', content: prompt }], model || 'openai/gpt-5.5');
-        if (!answer) return 'Sin respuesta de la IA.';
-        return truncate(answer, 1990);
-      }
-      if (process.env.OPENAI_API_KEY) {
+    // OpenAI (requiere OPENAI_API_KEY)
+    if (process.env.OPENAI_API_KEY) {
+      try {
         const answer = await openAiChat([
           { role: 'system', content: 'Eres un asistente útil y conciso. Responde en el idioma del usuario.' },
           { role: 'user', content: prompt },
         ]);
-        if (!answer) return 'Sin respuesta de la IA.';
-        return truncate(answer, 1990);
-      }
-      return 'Configura PUTER_AUTH_TOKEN (gratis en puter.com) o OPENAI_API_KEY.';
-    } catch (e) {
-      return `⚠️ Error de IA: ${e.message}`;
+        if (answer) return truncate(answer, 1990);
+      } catch (e) { /* fallback a mensaje */ }
     }
+    // Sin configurar
+    return [
+      '**🤖 IA sin configurar**',
+      'Puter.js es gratis pero necesita una cuenta (5 segundos, sin tarjeta).',
+      '',
+      '**Pasos:**',
+      '1. Entra a **puter.com** y crea una cuenta gratis',
+      '2. Abre consola del navegador (F12) y escribe: `puter.getUser()`',
+      '3. Copia tu token y añádelo como variable de entorno en bot-hosting:',
+      '```PUTER_AUTH_TOKEN=tu_token```',
+      '',
+      'También puedes usar `$ai` con OPENAI_API_KEY si la tienes.',
+    ].join('\n');
   },
 };
 
-export default [search, lyrics, images, song, transcribeCmd, ai];
+export default [imgsearch, search, lyrics, images, song, transcribeCmd, ai];
