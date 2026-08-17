@@ -1,12 +1,10 @@
 /* ============================================================
    commands/utility.js
    Utilidades: snipe (mensajes eliminados), purge (borra tus
-   mensajes respetando el rate limit de eliminación).
+   mensajes con bulkDelete para máxima velocidad).
    ============================================================ */
 
 import { truncate } from '../utils/helpers.js';
-
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const snipe = {
   name: 'snipe',
@@ -30,27 +28,53 @@ const purge = {
   name: 'purge',
   aliases: ['clean'],
   category: 'utilidad',
-  description: 'Elimina tus mensajes en el canal (máx. 100, con rate limit).',
+  description: 'Elimina tus mensajes en el canal (máx. 100, rápido).',
   usage: 'purge [cantidad]',
   async run(message, args) {
     const n = Math.min(Math.max(parseInt(args[0], 10) || 100, 1), 100);
     const channel = message.channel;
+
+    // Auto-borrar el comando del usuario
+    try { await message.delete(); } catch (e) { /* noop */ }
+
     let fetched;
     try {
-      fetched = await channel.messages.fetch({ limit: Math.min(n + 1, 100) });
+      fetched = await channel.messages.fetch({ limit: Math.min(n + 10, 100) });
     } catch (e) {
       return `No se pudieron obtener mensajes: ${e.message}`;
     }
-    const own = fetched.filter((m) => m.author && m.author.id === message.client.user.id).first(n);
+
+    const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    const own = fetched
+      .filter((m) => m.author && m.author.id === message.client.user.id && m.id !== message.id)
+      .first(n);
+
+    if (!own.length) return null;
+
     let removed = 0;
-    for (const m of own) {
+
+    // bulkDelete para mensajes <14 días (rápido, hasta 100 a la vez)
+    const fresh = own.filter((m) => m.createdTimestamp > cutoff);
+    const stale = own.filter((m) => m.createdTimestamp <= cutoff);
+
+    if (fresh.length >= 2) {
       try {
-        await m.delete();
-        removed++;
-      } catch (e) { /* rate limit u otro error */ }
-      await wait(1100);
+        const deleted = await channel.bulkDelete(fresh, true);
+        removed += deleted.size;
+      } catch (e) {
+        // fallback individual
+        for (const m of fresh) { try { await m.delete(); removed++; } catch (e2) { /* noop */ } }
+      }
+    } else {
+      for (const m of fresh) { try { await m.delete(); removed++; } catch (e) { /* noop */ } }
     }
-    return `🧹 Purge: eliminados **${removed}** de tus mensajes en ${channel.name || 'este canal'}.`;
+
+    // Mensajes viejos: borrado individual (Discord no permite bulkDelete >14 días)
+    for (const m of stale) {
+      try { await m.delete(); removed++; } catch (e) { /* noop */ }
+    }
+
+    return removed ? `🧹 Purge: eliminados **${removed}** mensajes.` : null;
   },
 };
 

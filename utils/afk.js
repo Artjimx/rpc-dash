@@ -15,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FILE = path.join(__dirname, '..', 'data', 'afk.json');
 const NOTIFY_WINDOW_MS = 10 * 60 * 1000;
 
-let state = { active: false, reason: '', since: 0, notified: {}, channelId: '', guildId: '' };
+let state = { active: false, reason: '', since: 0, notified: {}, channelId: '', guildId: '', lastNotifyAt: 0 };
 
 export function loadAFK() {
   try {
@@ -88,4 +88,12 @@ export function sinceText() {
   const m = Math.floor((s % 3600) / 60);
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
+}
+
+export function touchNotify() {
+  state.lastNotifyAt = Date.now();
+}
+
+export function sinceLastNotify() {
+  return state.lastNotifyAt ? Date.now() - state.lastNotifyAt : Infinity;
 }

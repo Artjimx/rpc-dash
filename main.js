@@ -116,14 +116,13 @@ async function handleMessage(message, ctx, plugins) {
   /* 2) Mensaje propio no-comando → sale del AFK y notifica.
         Ignora mensajes enviados por el propio bot (respuestas),
         para que no desactiven el AFK solos.
-        También ignora mensajes dentro de los 3s posteriores a la
-        activación del AFK (gracia para evitar race condition con
-        messageCreate del propio bot). */
+        También ignora mensajes dentro de los 5s posteriores a la
+        activación o a una notificación AFK del bot. */
   if (own) {
     if (afk.isAFK()) {
-      const afkState = afk.getAFK();
-      const sinceActivation = Date.now() - (afkState.since || 0);
-      if (!isSelfSent(client, message) && sinceActivation > 3000) {
+      const sinceActivation = Date.now() - (afk.getAFK().since || 0);
+      const sinceNotify = afk.sinceLastNotify();
+      if (!isSelfSent(client, message) && sinceActivation > 5000 && sinceNotify > 5000) {
         if (afk.clearAFK()) {
           log.info('AFK desactivado (mensaje propio).');
           await notifyAfkExit(message);
@@ -169,6 +168,7 @@ async function respondOnMention(message, ctx) {
         try {
           const sent = await message.reply(`💤 **AFK** — ${reason} (desde hace ${afk.sinceText()}). Te respondo cuando vuelva.`);
           trackSent(client, sent);
+          afk.touchNotify();
         } catch (e) { /* noop */ }
       }
     }

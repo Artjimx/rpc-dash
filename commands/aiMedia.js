@@ -15,8 +15,9 @@ import { searchImages } from '../ai/imageSearchService.js';
 import { searchSongs, getLyrics } from '../ai/musicService.js';
 import { transcribe } from '../ai/transcriptionService.js';
 import { openAiChat } from '../providers/chatProvider.js';
-import { puterChat } from '../providers/puterProvider.js';
+import { puterChat, parsePuterResponse } from '../providers/puterProvider.js';
 import { freeImageSearch } from '../providers/freeImageSearch.js';
+import { aiTools, executeTool } from '../ai/tools.js';
 import { truncate } from '../utils/helpers.js';
 
 const imgsearch = {
@@ -123,25 +124,47 @@ const ai = {
   name: 'ai',
   aliases: ['ask', 'chat', 'gpt'],
   category: 'ia/media',
-  description: 'Chatea con IA (Puter.js gratis o OpenAI).',
+  description: 'Chatea con IA (Puter.js con tools o OpenAI).',
   usage: 'ai <pregunta>',
   async run(message, args) {
     if (!args.length) return 'Uso: ai <pregunta>';
     const prompt = args.join(' ');
-    // Puter.js (gratis, requiere token de puter.com)
+    const systemMsg = 'Eres un asistente útil y conciso. Responde en el idioma del usuario. Si el usuario pide buscar imágenes, canciones o transcribir audio, usa las herramientas disponibles.';
+
+    // Puter.js con function calling
     if (process.env.PUTER_AUTH_TOKEN) {
       try {
-        const answer = await puterChat([
+        const response = await puterChat([
+          { role: 'system', content: systemMsg },
           { role: 'user', content: prompt },
-        ]);
-        if (answer) return truncate(answer, 1990);
+        ], 'openai/gpt-5.5', aiTools);
+        const { text, toolCalls } = parsePuterResponse(response);
+        if (toolCalls && toolCalls.length) {
+          const results = [];
+          for (const tc of toolCalls) {
+            const fn = tc.function;
+            const argsParsed = typeof fn.arguments === 'string' ? JSON.parse(fn.arguments) : fn.arguments;
+            const result = await executeTool(fn.name, argsParsed);
+            results.push(`**${fn.name}**: ${result}`);
+          }
+          // Segunda llamada: la IA resume los resultados
+          const followUp = await puterChat([
+            { role: 'system', content: systemMsg },
+            { role: 'user', content: prompt },
+            { role: 'assistant', content: text, tool_calls: toolCalls },
+            { role: 'tool', content: results.join('\n\n'), tool_call_id: toolCalls[0].id },
+          ], 'openai/gpt-5.5');
+          const { text: finalText } = parsePuterResponse(followUp);
+          return truncate(finalText || results.join('\n'), 1990);
+        }
+        if (text) return truncate(text, 1990);
       } catch (e) { /* intenta fallback */ }
     }
     // OpenAI (requiere OPENAI_API_KEY)
     if (process.env.OPENAI_API_KEY) {
       try {
         const answer = await openAiChat([
-          { role: 'system', content: 'Eres un asistente útil y conciso. Responde en el idioma del usuario.' },
+          { role: 'system', content: systemMsg },
           { role: 'user', content: prompt },
         ]);
         if (answer) return truncate(answer, 1990);
@@ -158,7 +181,7 @@ const ai = {
       '3. Copia tu token y añádelo como variable de entorno en bot-hosting:',
       '```PUTER_AUTH_TOKEN=tu_token```',
       '',
-      'También puedes usar `$ai` con OPENAI_API_KEY si la tienes.',
+      'Con Puter.js tienes tools: `$images`, `$song`, `$transcribe`.',
     ].join('\n');
   },
 };

@@ -27,14 +27,26 @@ export function scheduleReminder(r, client) {
 async function fireReminder(r, client) {
   timers.delete(r.id);
   try {
+    // DM directo al usuario para que realmente le llegue la notificación
+    const user = await client.users.fetch(r.userId).catch(() => null);
+    if (user) {
+      const dm = await user.createDM().catch(() => null);
+      if (dm) {
+        await dm.send({
+          content: `⏰ **Recordatorio**\n> ${r.text}`,
+          allowedMentions: { parse: [] },
+        }).catch(() => null);
+      }
+    }
+    // También enviar en el canal original como referencia
     const ch = await client.channels.fetch(r.channelId).catch(() => null);
-    if (!ch) return;
-    const content = `⏰ <@${r.userId}> — ${r.text}`;
-    const sent = await ch.send({
-      content,
-      allowedMentions: { parse: ['users'] },
-    }).catch(() => null);
-    if (sent && client._selfSent) client._selfSent.add(sent.id);
+    if (ch) {
+      const sent = await ch.send({
+        content: `⏰ <@${r.userId}> tu recordatorio: **${r.text}**`,
+        allowedMentions: { parse: ['users'] },
+      }).catch(() => null);
+      if (sent && client._selfSent) client._selfSent.add(sent.id);
+    }
   } catch (e) { /* noop */ }
 }
 

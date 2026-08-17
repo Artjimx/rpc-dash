@@ -2,6 +2,7 @@
    providers/puterProvider.js
    Chat IA con Puter.js (gratis, sin API key propia).
    Requiere PUTER_AUTH_TOKEN en .env (cuenta Puter del usuario).
+   Soporta function calling con tools.
    ============================================================ */
 
 import { createRequire } from 'node:module';
@@ -18,15 +19,19 @@ function getPuter() {
   return _puter;
 }
 
-export async function puterChat(messages, model = 'openai/gpt-5.5') {
+export async function puterChat(messages, model = 'openai/gpt-5.5', tools = null) {
   const puter = getPuter();
   const lastUser = messages.filter((m) => m.role === 'user').pop();
   if (!lastUser) throw new Error('Sin mensaje del usuario.');
-  const response = await puter.ai.chat(lastUser.content, { model });
-  return String(typeof response === 'string' ? response : response?.message?.content || response || '').trim() || null;
+  const opts = { model };
+  if (tools) opts.tools = tools;
+  const response = await puter.ai.chat(lastUser.content, opts);
+  return response;
 }
 
-export async function puterImage(prompt) {
-  const puter = getPuter();
-  return await puter.ai.txt2img(prompt, true);
+export function parsePuterResponse(response) {
+  if (typeof response === 'string') return { text: response, toolCalls: null };
+  const text = response?.message?.content || response?.text || (typeof response === 'string' ? response : '');
+  const toolCalls = response?.message?.tool_calls || null;
+  return { text: String(text || '').trim(), toolCalls };
 }
