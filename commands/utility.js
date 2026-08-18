@@ -5,6 +5,7 @@
    ============================================================ */
 
 import { truncate } from '../utils/helpers.js';
+import { purgeDelay } from '../utils/humanize.js';
 
 const snipe = {
   name: 'snipe',
@@ -69,9 +70,13 @@ const purge = {
       for (const m of fresh) { try { await m.delete(); removed++; } catch (e) { /* noop */ } }
     }
 
-    // Mensajes viejos: borrado individual (Discord no permite bulkDelete >14 días)
+    // Mensajes viejos: borrado individual con delay anti-heurística
     for (const m of stale) {
-      try { await m.delete(); removed++; } catch (e) { /* noop */ }
+      try {
+        await purgeDelay();
+        await m.delete();
+        removed++;
+      } catch (e) { /* noop */ }
     }
 
     return removed ? `🧹 Purge: eliminados **${removed}** mensajes.` : null;

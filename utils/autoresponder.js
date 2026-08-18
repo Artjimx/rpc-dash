@@ -57,7 +57,9 @@ export function saveAR() {
   if (!state) return;
   try {
     fs.mkdirSync(path.dirname(FILE), { recursive: true });
-    fs.writeFileSync(FILE, JSON.stringify(state, null, 2), 'utf8');
+    const tmp = FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(state, null, 2), 'utf8');
+    fs.renameSync(tmp, FILE);
   } catch (e) { /* noop */ }
 }
 
