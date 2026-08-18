@@ -35,6 +35,7 @@ import cmdUtility from './commands/utility.js';
 import cmdAutomation from './commands/automation.js';
 import cmdPanel from './commands/panel.js';
 import cmdAiMedia from './commands/aiMedia.js';
+import cmdTactical from './commands/tactical.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const booted = new WeakSet();
@@ -55,7 +56,7 @@ export async function bootCommandSystem(client) {
   const config = getConfig();
   const registry = newCommandRegistry();
 
-  const modules = [cmdHelp, cmdInfo, cmdAutoresponder, cmdTriggers, cmdUtility, cmdAutomation, cmdPanel, cmdAiMedia];
+  const modules = [cmdHelp, cmdInfo, cmdAutoresponder, cmdTriggers, cmdUtility, cmdAutomation, cmdPanel, cmdAiMedia, cmdTactical];
   for (const mod of modules) {
     for (const cmd of collectCommands(mod)) {
       registry.register(cmd);
