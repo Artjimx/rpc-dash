@@ -134,7 +134,18 @@ async function handleMessage(message, ctx, plugins) {
     return;
   }
 
-  /* 3) AFK + autoresponder. */
+  /* 3) Triggers (independientes del autoresponder y AFK). */
+  try {
+    const match = ts.findMatch(message.content);
+    if (match) {
+      const sent = await message.channel.send(match.response);
+      trackSent(client, sent);
+      await runPlugins(message, ctx, plugins);
+      return;
+    }
+  } catch (e) { /* noop */ }
+
+  /* 4) AFK + autoresponder (solo por mención). */
   if (config.features && config.features.autoresponder === false) {
     await runPlugins(message, ctx, plugins);
     return;
@@ -178,17 +189,7 @@ async function respondOnMention(message, ctx) {
   }
 
   /* Autoresponder: solo por mención, contexto dm/server. */
-  if (!mentioned) {
-    // Triggers: disparador por texto (no necesita mención)
-    const match = ts.findMatch(message.content);
-    if (match) {
-      try {
-        const sent = await message.channel.send(match.response);
-        trackSent(client, sent);
-      } catch (e) { /* noop */ }
-    }
-    return;
-  }
+  if (!mentioned) return;
   const res = ar.nextResponse(ar.ctxOf(message));
   if (res && res.text) {
     try {
