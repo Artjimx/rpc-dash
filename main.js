@@ -38,6 +38,7 @@ import cmdAiMedia from './commands/aiMedia.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const booted = new WeakSet();
+let _botSending = false;
 
 function collectCommands(mod) {
   const out = [];
@@ -118,15 +119,21 @@ async function handleMessage(message, ctx, plugins) {
   /* 2) Mensaje propio no-comando → triggers + AFK.
         Los triggers solo se activan con mensajes propios. */
   if (own) {
-    /* Triggers: macro personal (solo mensajes propios, solo este canal). */
-    try {
-      const match = ts.findMatch(message.content, message.channel.id);
-      if (match) {
-        const sent = await message.channel.send(match.response);
-        trackSent(client, sent);
-        return;
-      }
-    } catch (e) { /* noop */ }
+    /* Triggers: macro personal (solo mensajes propios, solo este canal).
+       Ignora comandos ($...) y respuestas del propio bot. */
+    if (!message.content.startsWith(prefix) && !isSelfSent(client, message) && !_botSending) {
+      try {
+        const match = ts.findMatch(message.content, message.channel.id);
+        if (match) {
+          _botSending = true;
+          try {
+            const sent = await message.channel.send(match.response);
+            trackSent(client, sent);
+          } finally { _botSending = false; }
+          return;
+        }
+      } catch (e) { /* noop */ }
+    }
 
     if (afk.isAFK()) {
       const sinceActivation = Date.now() - (afk.getAFK().since || 0);
