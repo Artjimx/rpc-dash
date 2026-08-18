@@ -20,7 +20,6 @@ import { newCommandRegistry, dispatch } from './utils/commandHandler.js';
 import { log } from './utils/logger.js';
 import { isOwner } from './utils/permissions.js';
 import { trackSent, isSelfSent } from './utils/helpers.js';
-import { humanSend, humanReply, canAutoSend, recordAutoSend } from './utils/humanize.js';
 import * as ar from './utils/autoresponder.js';
 import * as afk from './utils/afk.js';
 import * as ts from './utils/triggerStore.js';
@@ -123,20 +122,17 @@ async function handleMessage(message, ctx, plugins) {
     /* Triggers: macro personal (solo mensajes propios, solo este canal).
        Ignora comandos ($...) y respuestas del propio bot. */
     if (!message.content.startsWith(prefix) && !isSelfSent(client, message) && !_botSending) {
-      if (canAutoSend()) {
-        try {
-          const match = ts.findMatch(message.content);
-          if (match) {
-            _botSending = true;
-            try {
-              recordAutoSend();
-              const sent = await humanSend(message.channel, match.response);
-              trackSent(client, sent);
-            } finally { _botSending = false; }
-            return;
-          }
-        } catch (e) { /* noop */ }
-      }
+      try {
+        const match = ts.findMatch(message.content);
+        if (match) {
+          _botSending = true;
+          try {
+            const sent = await message.channel.send(match.response);
+            trackSent(client, sent);
+          } finally { _botSending = false; }
+          return;
+        }
+      } catch (e) { /* noop */ }
     }
 
     if (afk.isAFK()) {
@@ -164,9 +160,7 @@ async function handleMessage(message, ctx, plugins) {
 /* Notifica la salida del AFK y borra el aviso a los 6 segundos. */
 async function notifyAfkExit(message) {
   try {
-    if (!canAutoSend()) return;
-    recordAutoSend();
-    const sent = await humanReply(message, '✅ Saliste del modo AFK.');
+    const sent = await message.reply('✅ Saliste del modo AFK.');
     trackSent(message.client, sent);
     setTimeout(() => {
       sent.delete().catch(() => {});
@@ -185,16 +179,13 @@ async function respondOnMention(message, ctx) {
   if (afk.isAFK()) {
     if ((isDm || mentioned) && afk.matchesChannel(message)) {
       if (afk.shouldNotify(message.author.id)) {
-        if (canAutoSend()) {
-          const a = afk.getAFK();
-          const reason = a.reason || 'Estoy AFK';
-          try {
-            recordAutoSend();
-            const sent = await humanReply(message, `💤 **AFK** — ${reason} (desde hace ${afk.sinceText()}). Te respondo cuando vuelva.`);
-            trackSent(client, sent);
-            afk.touchNotify();
-          } catch (e) { /* noop */ }
-        }
+        const a = afk.getAFK();
+        const reason = a.reason || 'Estoy AFK';
+        try {
+          const sent = await message.reply(`💤 **AFK** — ${reason} (desde hace ${afk.sinceText()}). Te respondo cuando vuelva.`);
+          trackSent(client, sent);
+          afk.touchNotify();
+        } catch (e) { /* noop */ }
       }
     }
     return;
@@ -202,12 +193,10 @@ async function respondOnMention(message, ctx) {
 
   /* Autoresponder: solo por mención, contexto dm/server. */
   if (!mentioned) return;
-  if (!canAutoSend()) return;
   const res = ar.nextResponse(ar.ctxOf(message));
   if (res && res.text) {
     try {
-      recordAutoSend();
-      const sent = await humanReply(message, res.text);
+      const sent = await message.reply(res.text);
       trackSent(client, sent);
     } catch (e) {
       log.warn(`Autoresponder: ${e.message}`);

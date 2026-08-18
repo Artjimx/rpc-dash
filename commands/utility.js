@@ -5,7 +5,7 @@
    ============================================================ */
 
 import { truncate } from '../utils/helpers.js';
-import { purgeDelay } from '../utils/humanize.js';
+import { awaitRateLimit } from '../utils/humanize.js';
 
 const snipe = {
   name: 'snipe',
@@ -63,20 +63,29 @@ const purge = {
         const deleted = await channel.bulkDelete(fresh, true);
         removed += deleted.size;
       } catch (e) {
-        // fallback individual
-        for (const m of fresh) { try { await m.delete(); removed++; } catch (e2) { /* noop */ } }
+        // fallback individual con 429 handler
+        for (const m of fresh) {
+          try { await m.delete(); removed++; } catch (e2) {
+            if (await awaitRateLimit(e2)) {
+              try { await m.delete(); removed++; } catch (e3) { /* noop */ }
+            }
+          }
+        }
       }
     } else {
       for (const m of fresh) { try { await m.delete(); removed++; } catch (e) { /* noop */ } }
     }
 
-    // Mensajes viejos: borrado individual con delay anti-heurística
+    // Mensajes viejos: borrado individual con 429 handler
     for (const m of stale) {
       try {
-        await purgeDelay();
         await m.delete();
         removed++;
-      } catch (e) { /* noop */ }
+      } catch (e) {
+        if (await awaitRateLimit(e)) {
+          try { await m.delete(); removed++; } catch (e2) { /* noop */ }
+        }
+      }
     }
 
     return removed ? `🧹 Purge: eliminados **${removed}** mensajes.` : null;
