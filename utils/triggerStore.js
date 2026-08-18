@@ -2,8 +2,8 @@
    utils/triggerStore.js
    Autoresponder por disparador (trigger → respuesta).
    Cada entrada: { id, trigger, response, enabled, channelId }.
-   Solo funciona en el canal donde se creó.
-   Persiste en data/triggers.json.
+   Globales: funcionan en cualquier canal, solo mensajes propios.
+   Persiste en data/triggers.json (escritura atómica).
    ============================================================ */
 
 import fs from 'node:fs';
@@ -33,7 +33,9 @@ function load() {
 function save() {
   try {
     fs.mkdirSync(path.dirname(FILE), { recursive: true });
-    fs.writeFileSync(FILE, JSON.stringify(data, null, 2), 'utf8');
+    const tmp = FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(tmp, FILE);
   } catch (e) { /* noop */ }
 }
 
@@ -66,14 +68,13 @@ export function removeEntry(idOrIndex) {
   return removed;
 }
 
-export function findMatch(text, channelId) {
+export function findMatch(text) {
   load();
   if (!data.enabled) return null;
   const lower = String(text || '').toLowerCase();
   for (const e of data.entries) {
     if (!e.enabled) continue;
-    if (channelId && e.channelId && e.channelId !== channelId) continue;
-    if (lower.includes(e.trigger.toLowerCase())) return e;
+    if (lower === e.trigger.toLowerCase()) return e;
   }
   return null;
 }

@@ -123,7 +123,7 @@ async function handleMessage(message, ctx, plugins) {
        Ignora comandos ($...) y respuestas del propio bot. */
     if (!message.content.startsWith(prefix) && !isSelfSent(client, message) && !_botSending) {
       try {
-        const match = ts.findMatch(message.content, message.channel.id);
+        const match = ts.findMatch(message.content);
         if (match) {
           _botSending = true;
           try {
