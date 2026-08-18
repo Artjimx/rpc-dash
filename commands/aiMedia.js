@@ -1,13 +1,13 @@
 /* ============================================================
    commands/aiMedia.js
-   IA y multimedia con proveedores reales:
-   - imgsearch: búsqueda de imágenes (DuckDuckGo, sin clave)
-   - search: DuckDuckGo Instant Answer (sin clave)
-   - lyrics: lyrics.ovh (sin clave)
-   - images: Pexels (requiere PEXELS_API_KEY)
-   - song: YouTube Data API (requiere YOUTUBE_API_KEY)
-   - transcribe: OpenAI Whisper (requiere OPENAI_API_KEY)
-   - ai: Puter.js (gratis con cuenta) / OpenAI
+   IA y multimedia — sin API keys obligatorias:
+   - imgsearch: imágenes (DuckDuckGo, sin clave)
+   - search: búsqueda web (DuckDuckGo)
+   - lyrics: LrcLib API (sin clave)
+   - images: Pexels → fallback DuckDuckGo
+   - song: yt-search (sin YOUTUBE_API_KEY)
+   - transcribe: OpenAI Whisper → fallback HuggingFace
+   - ai: Puter.js (gratis) → OpenAI
    ============================================================ */
 
 import { webSearch } from '../ai/searchService.js';
@@ -20,6 +20,7 @@ import { freeImageSearch } from '../providers/freeImageSearch.js';
 import { aiTools, executeTool } from '../ai/tools.js';
 import { truncate } from '../utils/helpers.js';
 
+/* ─── imgsearch (DuckDuckGo, sin clave) ─── */
 const imgsearch = {
   name: 'imgsearch',
   aliases: ['isearch', 'buscarimg', 'buscarimagen'],
@@ -28,13 +29,17 @@ const imgsearch = {
   usage: 'imgsearch <consulta>',
   async run(message, args) {
     if (!args.length) return 'Uso: imgsearch <consulta>';
-    const results = await freeImageSearch(args.join(' '), 3);
+    const query = args.join(' ');
+    const results = await freeImageSearch(query, 3);
     if (!results.length) return 'Sin imágenes para esa búsqueda.';
-    const lines = results.map((r, i) => `${i + 1}. ${r.url}\n   ${r.title ? truncate(r.title, 60) : ''}`);
-    return truncate(`🖼️ **${args.join(' ')}**\n${lines.join('\n')}`, 1900);
+    const lines = results.map((r, i) =>
+      `${i + 1}. [ . ](${r.url})${r.title ? ` ${truncate(r.title, 60)}` : ''}`
+    );
+    return truncate(`🖼️ **${query}**\n${lines.join('\n')}`, 1900);
   },
 };
 
+/* ─── search (DuckDuckGo) ─── */
 const search = {
   name: 'search',
   aliases: ['buscar'],
@@ -50,66 +55,101 @@ const search = {
   },
 };
 
+/* ─── lyrics (LrcLib, sin clave) ─── */
 const lyrics = {
   name: 'lyrics',
   aliases: ['letra'],
   category: 'ia/media',
-  description: 'Letra de una canción (lyrics.ovh).',
+  description: 'Letra de una canción (LrcLib, sin clave).',
   usage: 'lyrics <artista> - <título>',
   async run(message, args) {
     if (!args.length) return 'Uso: lyrics <artista> - <título>';
     const joined = args.join(' ');
-    const parts = joined.split('-').map((s) => s.trim()).filter(Boolean);
-    if (parts.length < 2) {
-      const split = joined.split(' ');
-      if (split.length < 2) return 'Uso: lyrics <artista> - <título>';
-      parts[0] = split.shift();
-      parts[1] = split.join(' ');
+    let artist, title;
+
+    // Parseo flexible: "Artista - Título" o "Artista Título"
+    if (joined.includes('-')) {
+      const parts = joined.split('-');
+      artist = parts[0].trim();
+      title = parts.slice(1).join('-').trim();
+    } else {
+      const words = joined.split(' ');
+      if (words.length < 2) return 'Uso: lyrics <artista> - <título>';
+      artist = words[0];
+      title = words.slice(1).join(' ');
     }
-    const text = await getLyrics(parts[0], parts[1]);
-    if (!text) return `No se encontró la letra de «${parts[0]} - ${parts[1]}».`;
-    return truncate(`🎵 **${parts[0]} — ${parts[1]}**\n${text}`, 1990);
+
+    if (!artist || !title) return 'Uso: lyrics <artista> - <título>';
+
+    const text = await getLyrics(artist, title);
+    if (!text) return `No se encontró la letra de «${artist} - ${title}».`;
+    return truncate(`🎵 **${artist} — ${title}**\n${text}`, 1990);
   },
 };
 
+/* ─── images (Pexels → DuckDuckGo fallback) ─── */
 const images = {
   name: 'images',
   aliases: ['imagenes', 'img'],
   category: 'ia/media',
-  description: 'Busca imágenes (Pexels). Requiere PEXELS_API_KEY.',
+  description: 'Busca imágenes (Pexels o DuckDuckGo).',
   usage: 'images <consulta>',
   async run(message, args) {
     if (!args.length) return 'Uso: images <consulta>';
-    const photos = await searchImages(args.join(' '), 3);
-    if (!photos.length) return 'Sin imágenes para esa búsqueda.';
-    const lines = photos.map((p, i) => `${i + 1}. ${p.url}${p.alt ? ` — ${truncate(p.alt, 80)}` : ''}`);
-    return truncate(`🖼️ **${args.join(' ')}**\n${lines.join('\n')}`, 1900);
+    const query = args.join(' ');
+
+    // 1) Pexels si hay clave
+    if (process.env.PEXELS_API_KEY) {
+      try {
+        const photos = await searchImages(query, 3);
+        if (photos.length) {
+          const lines = photos.map((p, i) =>
+            `${i + 1}. [ . ](${p.url})${p.alt ? ` ${truncate(p.alt, 80)}` : ''}`
+          );
+          return truncate(`🖼️ **${query}**\n${lines.join('\n')}`, 1900);
+        }
+      } catch (e) { /* fallback DuckDuckGo */ }
+    }
+
+    // 2) Fallback DuckDuckGo Images (sin clave)
+    try {
+      const results = await freeImageSearch(query, 3);
+      if (!results.length) return 'Sin imágenes para esa búsqueda.';
+      const lines = results.map((r, i) =>
+        `${i + 1}. [ . ](${r.url})${r.title ? ` ${truncate(r.title, 60)}` : ''}`
+      );
+      return truncate(`🖼️ **${query}**\n${lines.join('\n')}`, 1900);
+    } catch (e) {
+      return `No se encontraron imágenes: ${e.message}`;
+    }
   },
 };
 
+/* ─── song (yt-search, sin API key) ─── */
 const song = {
   name: 'song',
   aliases: ['cancion', 'music'],
   category: 'ia/media',
-  description: 'Busca una canción en YouTube. Requiere YOUTUBE_API_KEY.',
+  description: 'Busca una canción en YouTube (sin API key).',
   usage: 'song <título o artista>',
   async run(message, args) {
     if (!args.length) return 'Uso: song <título o artista>';
-    const results = await searchSongs(args.join(' '), 3);
+    const query = args.join(' ');
+    const results = await searchSongs(query, 3);
     if (!results.length) return 'Sin resultados.';
-    return truncate(
-      `🎧 **${args.join(' ')}**\n` +
-      results.map((r, i) => `${i + 1}. ${r.title} — ${r.channel}\n   ${r.url}`).join('\n'),
-      1900,
+    const lines = results.map((r, i) =>
+      `${i + 1}. **${r.title}** — ${r.channel}\n   [ . ](${r.url})`
     );
+    return truncate(`🎧 **${query}**\n${lines.join('\n')}`, 1900);
   },
 };
 
+/* ─── transcribe (Whisper → HuggingFace fallback) ─── */
 const transcribeCmd = {
   name: 'transcribe',
   aliases: ['transcribir'],
   category: 'ia/media',
-  description: 'Transcribe un audio adjunto (Whisper). Requiere OPENAI_API_KEY.',
+  description: 'Transcribe un audio adjunto (Whisper o HuggingFace).',
   usage: 'transcribe (con un archivo de audio adjunto)',
   async run(message) {
     const att = message.attachments && message.attachments.first();
@@ -120,6 +160,7 @@ const transcribeCmd = {
   },
 };
 
+/* ─── ai (Puter.js + OpenAI fallback) ─── */
 const ai = {
   name: 'ai',
   aliases: ['ask', 'chat', 'gpt'],
@@ -129,7 +170,7 @@ const ai = {
   async run(message, args) {
     if (!args.length) return 'Uso: ai <pregunta>';
     const prompt = args.join(' ');
-    const systemMsg = 'Eres un asistente útil y conciso. Responde en el idioma del usuario. Si el usuario pide buscar imágenes, canciones o transcribir audio, usa las herramientas disponibles.';
+    const systemMsg = 'Eres un asistente directo y conciso. Responde en el idioma del usuario. Sin preámbulos, sin explicar lo que vas a hacer, ve al grano. Si el usuario pide buscar imágenes, canciones o transcribir audio, usa las herramientas disponibles.';
 
     // Puter.js con function calling
     if (process.env.PUTER_AUTH_TOKEN) {
@@ -147,7 +188,6 @@ const ai = {
             const result = await executeTool(fn.name, argsParsed);
             results.push(`**${fn.name}**: ${result}`);
           }
-          // Segunda llamada: la IA resume los resultados
           const followUp = await puterChat([
             { role: 'system', content: systemMsg },
             { role: 'user', content: prompt },
@@ -160,6 +200,7 @@ const ai = {
         if (text) return truncate(text, 1990);
       } catch (e) { /* intenta fallback */ }
     }
+
     // OpenAI (requiere OPENAI_API_KEY)
     if (process.env.OPENAI_API_KEY) {
       try {
@@ -168,8 +209,9 @@ const ai = {
           { role: 'user', content: prompt },
         ]);
         if (answer) return truncate(answer, 1990);
-      } catch (e) { /* fallback a mensaje */ }
+      } catch (e) { /* fallback */ }
     }
+
     // Sin configurar
     return [
       '**🤖 IA sin configurar**',

@@ -1,13 +1,14 @@
 /* ============================================================
    ai/tools.js
    Tools/function calling para la IA:
-   - search_images: busca imágenes (DuckDuckGo sin clave, o Pexels)
-   - search_songs: busca canciones en YouTube
-   - transcribe: transcribe audio (puter.ai.speech2txt o Whisper)
+   - search_images: imágenes (DuckDuckGo sin clave, o Pexels)
+   - search_songs: canciones en YouTube (yt-search)
+   - transcribe_audio: audio a texto (Whisper/HuggingFace)
    ============================================================ */
 
 import { freeImageSearch } from '../providers/freeImageSearch.js';
 import { searchSongs } from '../ai/musicService.js';
+import { transcribe } from '../ai/transcriptionService.js';
 
 export const aiTools = [
   {
@@ -58,23 +59,19 @@ export async function executeTool(name, args) {
   switch (name) {
     case 'search_images': {
       const results = await freeImageSearch(args.query, 3);
-      return results.map((r) => `${r.title}: ${r.url}`).join('\n') || 'Sin resultados.';
+      return results.map((r) => `${r.title}: [ . ](${r.url})`).join('\n') || 'Sin resultados.';
     }
     case 'search_songs': {
       const results = await searchSongs(args.query, 3);
       return results.map((r) => `${r.title} — ${r.channel}: ${r.url}`).join('\n') || 'Sin resultados.';
     }
     case 'transcribe_audio': {
-      // Puter.js speech2txt o fallback
-      if (process.env.PUTER_AUTH_TOKEN) {
-        const { createRequire } = await import('node:module');
-        const require = createRequire(import.meta.url);
-        const { init } = require('@heyputer/puter.js/src/init.cjs');
-        const puter = init(process.env.PUTER_AUTH_TOKEN);
-        const result = await puter.ai.speech2txt(args.audio_url);
-        return typeof result === 'string' ? result : result?.text || JSON.stringify(result);
+      try {
+        const text = await transcribe(args.audio_url);
+        return text || 'No se pudo transcribir el audio.';
+      } catch (e) {
+        return `Error de transcripción: ${e.message}`;
       }
-      return 'Transcripción requiere PUTER_AUTH_TOKEN.';
     }
     default:
       return `Herramienta desconocida: ${name}`;

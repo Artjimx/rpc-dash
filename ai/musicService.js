@@ -1,5 +1,5 @@
-/* ai/musicService.js — canciones (YouTube) y letras (lyrics.ovh). */
-import { youtubeSearch } from '../providers/musicProvider.js';
-import { lyricsOvh } from '../providers/lyricsProvider.js';
+/* ai/musicService.js — canciones (yt-search) y letras (LrcLib). */
+import { searchSongs } from '../providers/musicProvider.js';
+import { getLyrics } from '../providers/lyricsProvider.js';
 
-export { youtubeSearch as searchSongs, lyricsOvh as getLyrics };
+export { searchSongs, getLyrics };

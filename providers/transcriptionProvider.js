@@ -1,14 +1,26 @@
 /* ============================================================
    providers/transcriptionProvider.js
-   Transcripción de audio con Whisper de OpenAI.
-   Requiere la variable de entorno OPENAI_API_KEY
-   (clave en https://platform.openai.com/api-keys).
+   Transcripción de audio:
+   1. OpenAI Whisper (si OPENAI_API_KEY existe)
+   2. Fallback: HuggingFace Inference API (gratuita, sin clave)
    ============================================================ */
 
-export async function transcribeAudio(audioUrl, language) {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error('Falta la variable de entorno OPENAI_API_KEY (OpenAI Whisper).');
+const HF_MODEL = 'openai/whisper-large-v3';
 
+export async function transcribeAudio(audioUrl, language) {
+  // 1) OpenAI Whisper
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      return await _openaiWhisper(audioUrl, language);
+    } catch (e) { /* fallback HuggingFace */ }
+  }
+
+  // 2) HuggingFace Inference (gratuita)
+  return await _huggingFaceWhisper(audioUrl);
+}
+
+async function _openaiWhisper(audioUrl, language) {
+  const key = process.env.OPENAI_API_KEY;
   const audioRes = await fetch(audioUrl);
   if (!audioRes.ok) throw new Error(`No se pudo descargar el audio: HTTP ${audioRes.status}`);
   const buffer = Buffer.from(await audioRes.arrayBuffer());
@@ -24,6 +36,25 @@ export async function transcribeAudio(audioUrl, language) {
     body: form,
   });
   if (!res.ok) throw new Error(`Whisper: HTTP ${res.status}`);
+  const data = await res.json();
+  return String(data.text || '').trim() || null;
+}
+
+async function _huggingFaceWhisper(audioUrl) {
+  const audioRes = await fetch(audioUrl);
+  if (!audioRes.ok) throw new Error(`No se pudo descargar el audio: HTTP ${audioRes.status}`);
+  const buffer = Buffer.from(await audioRes.arrayBuffer());
+
+  const res = await fetch(
+    `https://api-inference.huggingface.co/models/${HF_MODEL}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: buffer,
+      signal: AbortSignal.timeout(30000),
+    },
+  );
+  if (!res.ok) throw new Error(`HuggingFace: HTTP ${res.status}`);
   const data = await res.json();
   return String(data.text || '').trim() || null;
 }
