@@ -1,7 +1,8 @@
 /* ============================================================
    utils/triggerStore.js
    Autoresponder por disparador (trigger → respuesta).
-   Cada entrada: { id, trigger, response, enabled }.
+   Cada entrada: { id, trigger, response, enabled, channelId }.
+   Solo funciona en el canal donde se creó.
    Persiste en data/triggers.json.
    ============================================================ */
 
@@ -40,10 +41,16 @@ export function isEnabled() { load(); return data.enabled; }
 export function setEnabled(v) { load(); data.enabled = !!v; save(); }
 export function getEntries() { load(); return data.entries; }
 
-export function addEntry(trigger, response) {
+export function addEntry(trigger, response, channelId) {
   load();
   const id = data.entries.length + 1;
-  data.entries.push({ id, trigger: trigger.trim(), response: response.trim(), enabled: true });
+  data.entries.push({
+    id,
+    trigger: trigger.trim(),
+    response: response.trim(),
+    enabled: true,
+    channelId: channelId || '',
+  });
   save();
   return data.entries[data.entries.length - 1];
 }
@@ -51,21 +58,21 @@ export function addEntry(trigger, response) {
 export function removeEntry(idOrIndex) {
   load();
   const n = Number(idOrIndex);
-  // buscar por id
   let idx = data.entries.findIndex((e) => e.id === n);
-  if (idx === -1) idx = n - 1; // fallback: índice 1-based
+  if (idx === -1) idx = n - 1;
   if (idx < 0 || idx >= data.entries.length) return null;
   const removed = data.entries.splice(idx, 1)[0];
   save();
   return removed;
 }
 
-export function findMatch(text) {
+export function findMatch(text, channelId) {
   load();
   if (!data.enabled) return null;
   const lower = String(text || '').toLowerCase();
   for (const e of data.entries) {
     if (!e.enabled) continue;
+    if (channelId && e.channelId && e.channelId !== channelId) continue;
     if (lower.includes(e.trigger.toLowerCase())) return e;
   }
   return null;

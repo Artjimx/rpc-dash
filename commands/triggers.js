@@ -26,7 +26,8 @@ function formatList() {
   lines.push('');
   for (const e of entries) {
     const status = e.enabled ? '🟢' : '🔴';
-    lines.push(`${status} **${e.id}.** «${truncate(e.trigger, 40)}» → «${truncate(e.response, 60)}»`);
+    const ch = e.channelId ? ` <#${e.channelId}>` : '';
+    lines.push(`${status} **${e.id}.** «${truncate(e.trigger, 40)}» → «${truncate(e.response, 60)}»${ch}`);
   }
   return lines.join('\n');
 }
@@ -70,8 +71,9 @@ const triggers = {
         const trigger = raw.slice(0, sep).trim();
         const response = raw.slice(sep + 1).trim();
         if (!trigger || !response) return 'Faltan el trigger o la respuesta.';
-        const entry = ts.addEntry(trigger, response);
-        return `✅ Trigger **${entry.id}** creado: «${truncate(trigger, 40)}» → «${truncate(response, 60)}»`;
+        const channelId = message.channel.id;
+        const entry = ts.addEntry(trigger, response, channelId);
+        return `✅ Trigger **${entry.id}** creado en <#${channelId}>: «${truncate(trigger, 40)}» → «${truncate(response, 60)}»`;
       }
 
       case 'remove':

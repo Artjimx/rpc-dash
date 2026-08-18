@@ -115,12 +115,19 @@ async function handleMessage(message, ctx, plugins) {
     return;
   }
 
-  /* 2) Mensaje propio no-comando → sale del AFK y notifica.
-        Ignora mensajes enviados por el propio bot (respuestas),
-        para que no desactiven el AFK solos.
-        También ignora mensajes dentro de los 5s posteriores a la
-        activación o a una notificación AFK del bot. */
+  /* 2) Mensaje propio no-comando → triggers + AFK.
+        Los triggers solo se activan con mensajes propios. */
   if (own) {
+    /* Triggers: macro personal (solo mensajes propios, solo este canal). */
+    try {
+      const match = ts.findMatch(message.content, message.channel.id);
+      if (match) {
+        const sent = await message.channel.send(match.response);
+        trackSent(client, sent);
+        return;
+      }
+    } catch (e) { /* noop */ }
+
     if (afk.isAFK()) {
       const sinceActivation = Date.now() - (afk.getAFK().since || 0);
       const sinceNotify = afk.sinceLastNotify();
@@ -133,17 +140,6 @@ async function handleMessage(message, ctx, plugins) {
     }
     return;
   }
-
-  /* 3) Triggers (independientes del autoresponder y AFK). */
-  try {
-    const match = ts.findMatch(message.content);
-    if (match) {
-      const sent = await message.channel.send(match.response);
-      trackSent(client, sent);
-      await runPlugins(message, ctx, plugins);
-      return;
-    }
-  } catch (e) { /* noop */ }
 
   /* 4) AFK + autoresponder (solo por mención). */
   if (config.features && config.features.autoresponder === false) {
