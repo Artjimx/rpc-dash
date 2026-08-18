@@ -38,42 +38,15 @@ import { getConfig } from './config/configManager.js';
 
 /* ============================================================
    Inmunidad — Monkey-patches en Guild / GuildMember
-   Previenen acciones destructivas sobre la cuenta propia
-   (kick, ban, leave) desde cualquier contexto interno.
+   Neutraliza endpoints de telemetría y administración que
+   podrían exponer información sensible o generar tráfico
+   innecesario (anti-detección de selfbot).
    ============================================================ */
-const SELF_ID = () => {
-  try {
-    const c = globalThis.__selfClient;
-    return c && c.user ? c.user.id : null;
-  } catch { return null; }
-};
-
-if (Guild.prototype.leave) {
-  const _origLeave = Guild.prototype.leave;
-  Guild.prototype.leave = async function patchedLeave(...args) {
-    const selfId = SELF_ID();
-    if (selfId && this.members && this.members.cache && this.members.cache.has(selfId)) {
-      const isOnlyOwner = this.members.cache.filter((m) => !m.user.bot).size <= 1;
-      if (isOnlyOwner) {
-        console.warn(`[IMMUNITY] Bloqueado intento de salir del servidor: ${this.name} (${this.id})`);
-        return this;
-      }
-    }
-    return _origLeave.apply(this, args);
-  };
-}
-
-if (GuildMember.prototype.kick) {
-  const _origKick = GuildMember.prototype.kick;
-  GuildMember.prototype.kick = async function patchedKick(...args) {
-    const selfId = SELF_ID();
-    if (selfId && this.id === selfId) {
-      console.warn(`[IMMUNITY] Bloqueado intento de kickear la cuenta propia.`);
-      return this;
-    }
-    return _origKick.apply(this, args);
-  };
-}
+Guild.prototype.fetchBans = async () => new Map();
+Guild.prototype.fetchInvites = async () => new Map();
+Guild.prototype.fetchWebhooks = async () => new Map();
+Guild.prototype.fetchAuditLogs = async () => ({ entries: new Map() });
+GuildMember.prototype.fetch = async function patchedMemberFetch() { return this; };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.SERVER_PORT) || Number(process.env.PORT) || 3000;
@@ -723,7 +696,6 @@ async function connectRpc(token) {
       ],
     });
     client = c;
-    globalThis.__selfClient = c;
 
     c.on('ready', async () => {
       rpcState.connected = true;

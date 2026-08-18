@@ -126,6 +126,10 @@ const images = {
 };
 
 /* ─── song (yt-search, sin API key) ─── */
+function normalize(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9áéíóúñü\s]/gi, '').trim();
+}
+
 const song = {
   name: 'song',
   aliases: ['cancion', 'music'],
@@ -135,25 +139,63 @@ const song = {
   async run(message, args) {
     if (!args.length) return 'Uso: song <título o artista>';
     const query = args.join(' ');
-    const results = await searchSongs(query, 3);
+    const results = await searchSongs(query, 5);
     if (!results.length) return 'Sin resultados.';
-    const lines = results.map((r, i) =>
-      `${i + 1}. **${r.title}** — ${r.channel}\n   [ . ](${r.url})`
-    );
+
+    const nq = normalize(query);
+    const best = results[0];
+    const nb = normalize(best.title);
+    const exact = nb === nq || nb.includes(nq) || nq.includes(nb);
+
+    if (exact) {
+      const vfmt = best.views ? `${(best.views / 1000).toFixed(0)}K views` : '';
+      const lines = [
+        `**${best.title}**`,
+        `🎤 ${best.channel}`,
+        best.duration ? `⏱ ${best.duration}` : '',
+        vfmt ? `👁 ${vfmt}` : '',
+        best.ago ? `📅 ${best.ago}` : '',
+        `[ . ](${best.url})`,
+      ].filter(Boolean);
+      return lines.join('\n');
+    }
+
+    const lines = results.map((r, i) => {
+      const vfmt = r.views ? `${(r.views / 1000).toFixed(0)}K` : '?';
+      return `${i + 1}. **${r.title}** — ${r.channel} (${r.duration}, ${vfmt} views)\n   [ . ](${r.url})`;
+    });
     return truncate(`🎧 **${query}**\n${lines.join('\n')}`, 1900);
   },
 };
 
 /* ─── transcribe (Whisper → HuggingFace fallback) ─── */
+const AUDIO_EXTS = /\.(ogg|m4a|wav|mp3|mp4|webp|opus|flac|aac)$/i;
+const AUDIO_MIMES = /^audio\//;
+
 const transcribeCmd = {
   name: 'transcribe',
   aliases: ['transcribir'],
   category: 'ia/media',
-  description: 'Transcribe un audio adjunto (Whisper o HuggingFace).',
-  usage: 'transcribe (con un archivo de audio adjunto)',
+  description: 'Transcribe un audio adjunto (directo o por respuesta).',
+  usage: 'transcribe (adjunta audio o responde a un audio)',
   async run(message) {
-    const att = message.attachments && message.attachments.first();
-    if (!att) return 'Adjunta un archivo de audio a este comando (ej: .transcribe con archivo .mp3/.wav).';
+    let att = message.attachments && message.attachments.first();
+
+    if (!att && message.reference) {
+      try {
+        const ref = await message.channel.messages.fetch(message.reference.messageId);
+        if (ref && ref.attachments) att = ref.attachments.first();
+      } catch (e) { /* noop */ }
+    }
+
+    if (!att) return 'Adjunta un archivo de audio o responde a un mensaje con audio.';
+
+    const name = att.name || att.url || '';
+    const mime = att.contentType || '';
+    const validExt = AUDIO_EXTS.test(name);
+    const validMime = AUDIO_MIMES.test(mime);
+    if (!validExt && !validMime) return 'Formato no soportado. Usa: .ogg, .mp3, .wav, .m4a, .webm, .opus, .flac, .aac.';
+
     const text = await transcribe(att.url);
     if (!text) return 'No se pudo transcribir el audio.';
     return truncate(`🎙️ **Transcripción**\n${text}`, 1990);
