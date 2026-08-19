@@ -13,6 +13,7 @@ const CATEGORY_EMOJI = {
   autoresponder: '🤖',
   panel: '📊',
   'ia/media': '🧠',
+  tactical: '🎯',
 };
 
 export default {
@@ -25,7 +26,7 @@ export default {
     const config = getConfig();
     const prefix = config.prefix || '.';
     const cats = ctx.registry.categories();
-    const order = ['información', 'utilidad', 'automatización', 'autoresponder', 'panel', 'ia/media'];
+    const order = ['información', 'utilidad', 'automatización', 'autoresponder', 'panel', 'ia/media', 'tactical'];
 
     if (args.length) {
       const name = String(args[0]).toLowerCase().replace(/^[.,]+/, '');
