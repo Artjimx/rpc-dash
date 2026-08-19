@@ -192,8 +192,9 @@ async function respondOnMention(message, ctx) {
     return;
   }
 
-  /* Autoresponder: solo por mención, contexto dm/server. */
+  /* Autoresponder: solo por mención directa (no por reply). */
   if (!mentioned) return;
+  if (message.reference) return;
   const res = ar.nextResponse(ar.ctxOf(message));
   if (res && res.text) {
     try {
