@@ -136,12 +136,12 @@ async function handleMessage(message, ctx, plugins) {
       } catch (e) { /* noop */ }
     }
 
-    if (afk.isAFK()) {
+    if (afk.isAFK() && afk.matchesChannel(message)) {
       const sinceActivation = Date.now() - (afk.getAFK().since || 0);
       const sinceNotify = afk.sinceLastNotify();
       if (!isSelfSent(client, message) && sinceActivation > 5000 && sinceNotify > 5000) {
         if (afk.clearAFK()) {
-          log.info('AFK desactivado (mensaje propio).');
+          log.info('AFK desactivado (mensaje propio en canal AFK).');
           await notifyAfkExit(message);
         }
       }
