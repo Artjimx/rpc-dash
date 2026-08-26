@@ -20,6 +20,7 @@ import { newCommandRegistry, dispatch } from './utils/commandHandler.js';
 import { log } from './utils/logger.js';
 import { isOwner } from './utils/permissions.js';
 import { trackSent, isSelfSent } from './utils/helpers.js';
+import { throttle } from './utils/humanize.js';
 import * as ar from './utils/autoresponder.js';
 import * as afk from './utils/afk.js';
 import * as ts from './utils/triggerStore.js';
@@ -128,6 +129,7 @@ async function handleMessage(message, ctx, plugins) {
         if (match) {
           _botSending = true;
           try {
+            await throttle(message.channel);
             const sent = await message.channel.send(match.response);
             trackSent(client, sent);
           } finally { _botSending = false; }
@@ -161,6 +163,7 @@ async function handleMessage(message, ctx, plugins) {
 /* Notifica la salida del AFK y borra el aviso a los 6 segundos. */
 async function notifyAfkExit(message) {
   try {
+    await throttle(message.channel);
     const sent = await message.reply('✅ Saliste del modo AFK.');
     trackSent(message.client, sent);
     setTimeout(() => {
@@ -183,6 +186,7 @@ async function respondOnMention(message, ctx) {
         const a = afk.getAFK();
         const reason = a.reason || 'Estoy AFK';
         try {
+          await throttle(message.channel);
           const sent = await message.reply(`💤 **AFK** — ${reason} (desde hace ${afk.sinceText()}). Te respondo cuando vuelva.`);
           trackSent(client, sent);
           afk.touchNotify();
@@ -198,6 +202,7 @@ async function respondOnMention(message, ctx) {
   const res = ar.nextResponse(ar.ctxOf(message));
   if (res && res.text) {
     try {
+      await throttle(message.channel);
       const sent = await message.reply(res.text);
       trackSent(client, sent);
     } catch (e) {

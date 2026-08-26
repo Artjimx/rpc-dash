@@ -11,6 +11,7 @@
 import { getConfig } from '../config/configManager.js';
 import { isOwner } from './permissions.js';
 import { trackSent } from './helpers.js';
+import { throttle } from './humanize.js';
 
 export function newCommandRegistry() {
   const commands = new Map();
@@ -62,6 +63,7 @@ export async function dispatch(client, message, ctx) {
   const cmd = ctx.registry.get(parsed.name);
   if (!cmd) {
     try {
+      await throttle(message.channel);
       const m = await message.reply(`Comando desconocido «${parsed.name}». Usa ${prefix}help para ver la lista.`).catch(() => {});
       trackSent(client, m);
     } catch (e) { /* noop */ }
@@ -70,6 +72,7 @@ export async function dispatch(client, message, ctx) {
 
   if (cmd.ownerOnly && !isOwner(client, message, config)) {
     try {
+      await throttle(message.channel);
       const m = await message.reply('No tienes permisos para usar este comando.').catch(() => {});
       trackSent(client, m);
     } catch (e) { /* noop */ }
@@ -80,6 +83,7 @@ export async function dispatch(client, message, ctx) {
     const out = await cmd.run(message, parsed.args, ctx);
     if (out && typeof out === 'string') {
       try {
+        await throttle(message.channel);
         const m = await message.reply(out).catch(() => {});
         trackSent(client, m);
       } catch (e) { /* noop */ }
@@ -87,6 +91,7 @@ export async function dispatch(client, message, ctx) {
   } catch (err) {
     const msg = (err && err.message) || 'Error desconocido';
     try {
+      await throttle(message.channel);
       const m = await message.reply(`⚠️ ${msg}`).catch(() => {});
       trackSent(client, m);
     } catch (e) { /* noop */ }
