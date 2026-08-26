@@ -688,9 +688,6 @@ async function connectRpc(token) {
     const c = new Client({
       intents: [
         Intents.FLAGS.GUILDS,
-        Intents.FLAGS.GUILD_MESSAGES,
-        Intents.FLAGS.DIRECT_MESSAGES,
-        Intents.FLAGS.MESSAGE_CONTENT,
       ],
     });
     client = c;
@@ -721,14 +718,15 @@ async function connectRpc(token) {
         log.error(`Fallo al replicar la actividad: ${e.message}`);
       }
 
-      /* Selfbot de comandos (main.js): enganchado al mismo cliente.
-         Si algo falla, el RPC no se ve afectado. */
-      try {
-        const cmdRegistry = await bootCommandSystem(c);
-        log.ok(`Selfbot de comandos listo (${cmdRegistry ? cmdRegistry.size() : 0} comandos).`);
-      } catch (e) {
-        log.warn(`Selfbot de comandos no iniciado: ${e.message}`);
-      }
+      /* Selfbot de comandos (main.js): DESHABILITADO temporalmente.
+         Solo funciona RPC. Para reactivar, descomentar las 2 líneas de abajo. */
+      // try {
+      //   const cmdRegistry = await bootCommandSystem(c);
+      //   log.ok(`Selfbot de comandos listo (${cmdRegistry ? cmdRegistry.size() : 0} comandos).`);
+      // } catch (e) {
+      //   log.warn(`Selfbot de comandos no iniciado: ${e.message}`);
+      // }
+      log.ok('Selfbot de comandos deshabilitado — solo RPC activo.');
       io.emit('rpcStatus', getRpcState());
     });
 
