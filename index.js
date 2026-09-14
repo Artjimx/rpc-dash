@@ -1016,6 +1016,12 @@ function rotationTick() {
   const profile = cleanActivity(rotationProfiles[rotationIndex]);
   if (!profile.userToken) profile.userToken = resolveToken(profile, loadSettings());
 
+  /* Si el perfil rotado no define timestamps, se heredan de la actividad
+     actual para que el contador («hora de inicio») no se resetee a 00:00
+     en cada swap de rotación. */
+  if (profile.startTimestamp === undefined) profile.startTimestamp = (currentActivity && currentActivity.startTimestamp) || '';
+  if (profile.endTimestamp === undefined) profile.endTimestamp = (currentActivity && currentActivity.endTimestamp) || '';
+
   updatePresence(profile)
     .then(() => io.emit('rotationState', getRotationState()))
     .catch(() => io.emit('rotationState', getRotationState()))
