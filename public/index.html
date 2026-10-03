@@ -891,6 +891,30 @@ body{
            'T' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
 
+  /* Corrige URLs tipadas mal (https://https://…, espacios, comas,
+     sin esquema) y devuelve la URL limpia, o '' si no es válida. */
+  function normalizeUrl(value) {
+    if (typeof value !== 'string') return '';
+    var v = value.trim();
+    if (!v) return '';
+    v = v.replace(/\s+/g, '').replace(/,+$/g, '').replace(/,+/g, '');
+    var cleaned = v;
+    for (var i = 0; i < 3; i++) {
+      if (/^(https?:\/\/)+(https?:\/\/)/i.test(cleaned)) {
+        cleaned = cleaned.replace(/^(https?:\/\/)+/i, 'https://');
+      } else break;
+    }
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(cleaned)) cleaned = 'https://' + cleaned;
+    try {
+      var u = new URL(cleaned);
+      if (!/^https?:$/i.test(u.protocol)) return '';
+      if (!u.hostname || u.hostname.indexOf('.') === -1) return '';
+      return u.protocol === 'https:' ? u.toString() : '';
+    } catch (e) {
+      return '';
+    }
+  }
+
   function readAdvanced() {
     var st = $('inStartTs').value, et = $('inEndTs').value;
     var ps = parseInt($('inPartySize').value, 10), pm = parseInt($('inPartyMax').value, 10);
@@ -902,7 +926,7 @@ body{
       type: $('inType').value,
       platform: $('inPlatform').value,
       status: $('inStatus').value,
-      streamUrl: $('inStreamUrl').value.trim(),
+      streamUrl: normalizeUrl($('inStreamUrl').value),
       details: $('inDetails').value.trim(),
       state: $('inState').value.trim(),
       partySize: isNaN(ps) ? '' : ps,
@@ -914,9 +938,9 @@ body{
       smallImageUrl: $('inSmallUrl').value.trim(),
       smallImageText: $('inSmallText').value.trim(),
       button1Text: $('inBtn1Text').value.trim(),
-      button1Url: $('inBtn1Url').value.trim(),
+      button1Url: normalizeUrl($('inBtn1Url').value),
       button2Text: $('inBtn2Text').value.trim(),
-      button2Url: $('inBtn2Url').value.trim()
+      button2Url: normalizeUrl($('inBtn2Url').value)
     };
   }
 
@@ -968,19 +992,39 @@ body{
   }
 
   function updateBtnWarning() {
-    var hasBtn = ($('inBtn1Text').value.trim() && $('inBtn1Url').value.trim()) ||
-                 ($('inBtn2Text').value.trim() && $('inBtn2Url').value.trim());
-    var msg = '';
+    var msgs = [];
+    var b1t = $('inBtn1Text').value.trim(), b1u = $('inBtn1Url').value.trim();
+    var b2t = $('inBtn2Text').value.trim(), b2u = $('inBtn2Url').value.trim();
+    var hasBtn = (b1t && b1u) || (b2t && b2u);
+    var appId = $('inAppId').value.trim();
+
     if (hasBtn) {
-      var bad = ($('inBtn1Text').value.trim() && !/^https:\/\//i.test($('inBtn1Url').value.trim())) ||
-                ($('inBtn2Text').value.trim() && !/^https:\/\//i.test($('inBtn2Url').value.trim()));
-      msg = bad
-        ? 'Las URLs de los botones deben empezar por https:// para que Discord las muestre.'
-        : 'Los botones se muestran en el popout del perfil (click en tu avatar) y requieren una aplicación validada en el Developer Portal.';
+      ['inBtn1Url', 'inBtn2Url'].forEach(function (id) {
+        var el = $(id);
+        var txt = $(id === 'inBtn1Url' ? 'inBtn1Text' : 'inBtn2Text').value.trim();
+        var u = normalizeUrl(el.value);
+        if (txt && u === '') msgs.push('El botón «' + txt + '» necesita una URL válida (empezando por https://). Revisa espacios o un https:// duplicado.');
+      });
     }
+
+    var type = $('inType').value;
+    if (type === 'streaming') {
+      var su = normalizeUrl($('inStreamUrl').value);
+      if (su === '') msgs.push('Streaming: escribe una URL Twitch/YouTube válida (empezando por https://).');
+      else if (!/twitch\.tv|youtube\.com|youtu\.be/i.test(su)) msgs.push('Streaming: Discord solo muestra Twitch o YouTube. Un canal inexistente o apagado oculta la actividad.');
+      else msgs.push('Streaming: el canal debe existir y estar EN VIVO, si no Discord no muestra la actividad.');
+    }
+
+    if (hasBtn && !/^[0-9]{17,20}$/.test(appId)) {
+      msgs.push('Botones: se necesita un App ID válido y una aplicación validada en el Developer Portal para que se muestren.');
+    }
+    if ((normalizeUrl($('inLargeUrl').value) || normalizeUrl($('inSmallUrl').value)) && !/^[0-9]{17,20}$/.test(appId)) {
+      msgs.push('Imágenes: se necesita un App ID válido (17-20 dígitos) para que Discord las renderice.');
+    }
+
     var hint = $('btnWarning').querySelector('.up-hint');
-    if (hint) hint.textContent = msg;
-    $('btnWarning').style.display = msg ? '' : 'none';
+    if (hint) hint.textContent = msgs.join(' ');
+    $('btnWarning').style.display = msgs.length ? '' : 'none';
   }
 
   /* ---------------- Tarjeta de preview ---------------- */
@@ -1026,8 +1070,8 @@ body{
     var box = $('dcButtons');
     box.innerHTML = '';
     var btns = [];
-    if (a.button1Text && /^https:\/\//i.test(a.button1Url || '')) btns.push([a.button1Text, a.button1Url]);
-    if (a.button2Text && /^https:\/\//i.test(a.button2Url || '')) btns.push([a.button2Text, a.button2Url]);
+    if (a.button1Text && normalizeUrl(a.button1Url)) btns.push([a.button1Text, normalizeUrl(a.button1Url)]);
+    if (a.button2Text && normalizeUrl(a.button2Url)) btns.push([a.button2Text, normalizeUrl(a.button2Url)]);
     for (var i = 0; i < btns.length; i++) {
       var el = document.createElement('a');
       el.className = 'dc-btn';
@@ -1439,8 +1483,12 @@ body{
       btn.textContent = 'Actualizando…';
       emitAck('updatePresence', data)
         .then(function (res) {
-          if (res && res.ok) toast('Presencia actualizada en Discord', 'ok');
-          else toast('Guardado en local — Discord: ' + ((res && res.error) || 'sin conexión'), 'info');
+          if (res && res.ok) {
+            toast('Presencia actualizada en Discord', 'ok');
+            if (res.warnings && res.warnings.length) {
+              res.warnings.forEach(function (w) { toast(w, 'info'); });
+            }
+          } else toast('Guardado en local — Discord: ' + ((res && res.error) || 'sin conexión'), 'info');
         })
         .catch(function (err) { toast(err.message, 'err'); })
         .then(function () {

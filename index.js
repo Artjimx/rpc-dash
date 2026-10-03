@@ -220,6 +220,12 @@ function cleanActivity(body) {
     const v = body[k];
     out[k] = (typeof v === 'string' ? v.trim() : v) || undefined;
   }
+  /* Normaliza URLs para no guardar (ni enviar a Discord) variantes
+     rotas como «https://https://…» que se descartan en silencio. */
+  const urlKeys = { streamUrl: false, button1Url: false, button2Url: false };
+  for (const [k, allowHttp] of Object.entries(urlKeys)) {
+    if (out[k]) out[k] = normalizeUrl(out[k], allowHttp) || undefined;
+  }
   return out;
 }
 
@@ -306,23 +312,68 @@ function describeRpcError(err) {
   return m;
 }
 
-function isValidStreamUrl(url) {
-  if (typeof url !== 'string' || !url.trim()) return false;
-  try {
-    const u = new URL(url.trim());
-    return u.protocol === 'https:' && !!u.hostname;
-  } catch (e) {
-    return false;
+function normalizeUrl(value, allowHttp) {
+  if (typeof value !== 'string') return '';
+  let v = value.trim();
+  if (!v) return '';
+  /* Elimina «https://https://...», «https://http://...», espacios raros,
+     tabuladores y comas que rompen la URL y hacen que Discord descarte
+     el botón / la stream silentemente. */
+  v = v.replace(/\s+/g, '').replace(/,+$/, '').replace(/,+/g, '');
+  let cleaned = v;
+  for (let i = 0; i < 3; i++) {
+    if (/^(https?:\/\/)+(https?:\/\/)/i.test(cleaned)) {
+      cleaned = cleaned.replace(/^(https?:\/\/)+/i, (m) => (allowHttp ? m.slice(0, m.indexOf('//') + 2) : 'https://'));
+    } else break;
   }
+  /* Empieza sin esquema (ej. arcase-production.up.railway.app) → asume https. */
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(cleaned)) cleaned = 'https://' + cleaned;
+  try {
+    const u = new URL(cleaned);
+    if (!/^https?:$/i.test(u.protocol)) return '';
+    if (!u.hostname || !u.hostname.includes('.')) return '';
+    return allowHttp || u.protocol === 'https:' ? u.toString() : '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function isValidStreamUrl(url) {
+  return !!normalizeUrl(url, false) && /twitch\.tv|youtube\.com|youtu\.be/i.test(url);
 }
 
 function validateActivity(a) {
   const problems = [];
+  const warnings = [];
   const type = TYPE_BY_NAME[String(a.type || '').toLowerCase()];
-  if (type === ACTIVITY_TYPES.STREAMING && !isValidStreamUrl(a.streamUrl)) {
-    problems.push('Streaming requiere una «Stream URL» válida (ej. https://twitch.tv/usuario). Sin ella Discord descarta el evento silenciosamente.');
+  const stream = normalizeUrl(a.streamUrl, false);
+
+  if (type === ACTIVITY_TYPES.STREAMING) {
+    if (!stream) {
+      problems.push('Streaming requiere una «Stream URL» válida (ej. https://twitch.tv/usuario). Sin ella Discord descarta el evento silenciosamente.');
+    } else if (!/twitch\.tv|youtube\.com|youtu\.be/i.test(stream)) {
+      /* Discord solo renderiza streaming con dominios Twitch/YouTube. */
+      problems.push('Streaming solo se muestra en Discord si la «Stream URL» es de Twitch o YouTube (ej. https://twitch.tv/usuario).');
+    } else {
+      /* Aviso no bloqueante: si el canal no existe / no está en vivo,
+         Discord oculta la actividad de streaming. */
+      warnings.push('Streaming: asegúrate de que el canal Twitch/YouTube exista y esté EN VIVO, si no Discord no muestra la actividad.');
+    }
   }
-  return problems;
+
+  const hasImage = !!(a.largeImageUrl && normalizeUrl(a.largeImageUrl, true)) ||
+                   !!(a.smallImageUrl && normalizeUrl(a.smallImageUrl, true));
+  if (hasImage && !isValidAppId(a.applicationId)) {
+    warnings.push('Imágenes requieren un «App ID» válido (17-20 dígitos): sin él Discord no renderiza la imagen, solo el nombre y detalles.');
+  }
+
+  const hasBtn = (a.button1Text && normalizeUrl(a.button1Url, false)) ||
+                 (a.button2Text && normalizeUrl(a.button2Url, false));
+  if (hasBtn && !isValidAppId(a.applicationId)) {
+    warnings.push('Botones: Discord solo los muestra con un «App ID» válido y una aplicación validada en el Developer Portal.');
+  }
+
+  return { problems, warnings };
 }
 
 function toMs(v) {
@@ -428,8 +479,11 @@ async function buildRichPresence(c, a) {
   const platform = PLATFORM_MAP[String(a.platform || '').toLowerCase()];
   if (platform && VALID_PLATFORMS.has(platform)) rp.setPlatform(platform);
 
-  if (type === ACTIVITY_TYPES.STREAMING && isValidStreamUrl(a.streamUrl)) {
-    try { rp.setURL(a.streamUrl.trim()); } catch (e) { log.warn(`Stream URL inválida: ${e.message}`); }
+  if (type === ACTIVITY_TYPES.STREAMING) {
+    const stream = normalizeUrl(a.streamUrl, false);
+    if (stream) {
+      try { rp.setURL(stream); } catch (e) { log.warn(`Stream URL inválida: ${e.message}`); }
+    }
   }
 
   const start = toMs(a.startTimestamp) || Date.now();
@@ -477,8 +531,10 @@ async function buildRichPresence(c, a) {
   }
 
   const buttons = [];
-  if (a.button1Text && /^https:\/\//i.test(a.button1Url || '')) buttons.push({ name: String(a.button1Text).slice(0, 32), url: a.button1Url });
-  if (a.button2Text && /^https:\/\//i.test(a.button2Url || '')) buttons.push({ name: String(a.button2Text).slice(0, 32), url: a.button2Url });
+  const b1u = normalizeUrl(a.button1Url, false);
+  const b2u = normalizeUrl(a.button2Url, false);
+  if (a.button1Text && b1u) buttons.push({ name: String(a.button1Text).slice(0, 32), url: b1u });
+  if (a.button2Text && b2u) buttons.push({ name: String(a.button2Text).slice(0, 32), url: b2u });
   if (buttons.length) {
     try { rp.setButtons(...buttons); } catch (e) { log.warn(`Botones ignorados: ${e.message}`); }
   }
@@ -914,20 +970,21 @@ async function updatePresence(activity) {
   if (stateTimer) baseActivity = { ...activity };
   rpcState.updatedAt = new Date().toISOString();
 
+  const warnings = validateActivity(activity).warnings;
   const token = resolveToken(activity, loadSettings());
   if (!token) {
     rpcState.error = 'Falta el USER_TOKEN (USER_TOKEN en .env o en el campo del dashboard).';
     log.error(`No se aplicó la actividad: ${rpcState.error}`);
     io.emit('presenceUpdated', sanitizeActivity(currentActivity));
-    return { ok: false, error: rpcState.error };
+    return { ok: false, error: rpcState.error, warnings };
   }
 
-  const problems = validateActivity(activity);
+  const { problems } = validateActivity(activity);
   if (problems.length) {
     rpcState.error = problems[0];
     log.error(`Actividad rechazada antes de enviarse: ${problems[0]}`);
     io.emit('presenceUpdated', sanitizeActivity(currentActivity));
-    return { ok: false, error: rpcState.error };
+    return { ok: false, error: rpcState.error, warnings };
   }
 
   try {
@@ -940,12 +997,12 @@ async function updatePresence(activity) {
     log.ok(`Presencia aplicada en Discord (${activity.name || 'PRESENCE'})`);
     log.rpc('setPresence → payload exacto enviado a Discord', client.presence.activities.map((a) => a.toJSON()));
     io.emit('presenceUpdated', sanitizeActivity(currentActivity));
-    return { ok: true, connected: true };
+    return { ok: true, connected: true, warnings };
   } catch (err) {
     rpcState.error = describeRpcError(err);
     log.error(`Fallo al aplicar la presencia: ${rpcState.error}`);
     io.emit('presenceUpdated', sanitizeActivity(currentActivity));
-    return { ok: false, connected: false, error: rpcState.error };
+    return { ok: false, connected: false, error: rpcState.error, warnings };
   }
 }
 
