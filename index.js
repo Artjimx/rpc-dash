@@ -1487,6 +1487,22 @@ io.on('connection', (socket) => {
    Arranque
    ============================================================ */
 
+/* Garantía de privacidad: si no hay ningún token (ni USER_TOKEN en
+   env ni userToken en data/settings.json), no puede existir un RPC
+   configurado por nadie. En ese caso se restaura todo a estado de
+   fábrica (DEFAULT_SETTINGS + uploads vacíos) para que un contenedor
+   nuevo o un bot-hosting con datos previos arranque 100% limpio y
+   listo para que el usuario lo configure desde cero. */
+function ensureCleanState() {
+  const s = loadSettings();
+  const hasToken = Boolean(USER_TOKEN_ENV) || Boolean(String(s.userToken || '').trim());
+  if (hasToken) return;
+  saveSettings({ ...DEFAULT_SETTINGS });
+  clearUploads();
+  currentActivity = null;
+  log.ok('Arranque limpio: sin USER_TOKEN, panel restaurado a estado de fábrica.');
+}
+
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('');
   console.log('  ┌────────────────────────────────────────────────┐');
@@ -1501,6 +1517,7 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('  Nota: Rich Presence vía USER_TOKEN (cuenta propia).');
   console.log(`  USER_TOKEN desde env: ${USER_TOKEN_ENV ? 'definido' : 'vacío — usa el campo del dashboard o variables de entorno'}`);
   console.log('  Auto-conexión → RPC activo 24/7 desde el host');
+  ensureCleanState();
   autoConnect();
 });
 
