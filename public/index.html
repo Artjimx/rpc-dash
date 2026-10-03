@@ -615,8 +615,9 @@ body{
   };
   var fmtT = function (sec) {
     sec = Math.max(0, Math.floor(sec || 0));
-    var m = Math.floor(sec / 60), s = sec % 60;
-    return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return (h ? h + ':' + p(m) : p(m)) + ':' + p(s);
   };
   var fmtClock = function (d) {
     var p = function (n) { return (n < 10 ? '0' : '') + n; };
@@ -969,9 +970,17 @@ body{
   function updateBtnWarning() {
     var hasBtn = ($('inBtn1Text').value.trim() && $('inBtn1Url').value.trim()) ||
                  ($('inBtn2Text').value.trim() && $('inBtn2Url').value.trim());
-    var blockedType = $('inType').value === 'streaming' || $('inType').value === 'competing';
-    var blockedPlatform = ['playstation_4', 'playstation_5', 'samsung', 'xbox'].indexOf($('inPlatform').value) !== -1;
-    $('btnWarning').style.display = (hasBtn && (blockedType || blockedPlatform)) ? '' : 'none';
+    var msg = '';
+    if (hasBtn) {
+      var bad = ($('inBtn1Text').value.trim() && !/^https:\/\//i.test($('inBtn1Url').value.trim())) ||
+                ($('inBtn2Text').value.trim() && !/^https:\/\//i.test($('inBtn2Url').value.trim()));
+      msg = bad
+        ? 'Las URLs de los botones deben empezar por https:// para que Discord las muestre.'
+        : 'Los botones se muestran en el popout del perfil (click en tu avatar) y requieren una aplicación validada en el Developer Portal.';
+    }
+    var hint = $('btnWarning').querySelector('.up-hint');
+    if (hint) hint.textContent = msg;
+    $('btnWarning').style.display = msg ? '' : 'none';
   }
 
   /* ---------------- Tarjeta de preview ---------------- */
@@ -1017,8 +1026,8 @@ body{
     var box = $('dcButtons');
     box.innerHTML = '';
     var btns = [];
-    if (a.button1Text && a.button1Url) btns.push([a.button1Text, a.button1Url]);
-    if (a.button2Text && a.button2Url) btns.push([a.button2Text, a.button2Url]);
+    if (a.button1Text && /^https:\/\//i.test(a.button1Url || '')) btns.push([a.button1Text, a.button1Url]);
+    if (a.button2Text && /^https:\/\//i.test(a.button2Url || '')) btns.push([a.button2Text, a.button2Url]);
     for (var i = 0; i < btns.length; i++) {
       var el = document.createElement('a');
       el.className = 'dc-btn';

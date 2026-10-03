@@ -907,6 +907,9 @@ async function clearActivity() {
 }
 
 async function updatePresence(activity) {
+  /* Sin startTimestamp, Discord cuenta desde el momento de aplicar:
+     se guarda ese instante para que la tarjeta lo muestre igual. */
+  if (!activity.startTimestamp) activity.startTimestamp = Date.now();
   currentActivity = activity;
   if (stateTimer) baseActivity = { ...activity };
   rpcState.updatedAt = new Date().toISOString();
