@@ -476,8 +476,16 @@ async function buildRichPresence(c, a) {
   if (a.details) rp.setDetails(String(a.details).slice(0, 128));
   if (a.state) rp.setState(String(a.state).slice(0, 128));
 
+  /* El cliente de Discord solo pinta la tarjeta roja «En directo» de
+     Streaming en plataformas desktop/web. Con una consola (ps5, ps4,
+     xbox, samsung, android, ios) Discord degrada el estado y no muestra
+     la transmisión; por eso en Streaming se fuerza desktop. */
   const platform = PLATFORM_MAP[String(a.platform || '').toLowerCase()];
-  if (platform && VALID_PLATFORMS.has(platform)) rp.setPlatform(platform);
+  const platformEffective =
+    type === ACTIVITY_TYPES.STREAMING
+      ? 'desktop'
+      : (platform && VALID_PLATFORMS.has(platform) ? platform : null);
+  if (platformEffective) rp.setPlatform(platformEffective);
 
   if (type === ACTIVITY_TYPES.STREAMING) {
     const stream = normalizeUrl(a.streamUrl, false);
