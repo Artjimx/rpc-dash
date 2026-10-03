@@ -212,6 +212,8 @@ body{
 }
 .btn.primary:hover{background:var(--accent);color:#04040a;border-color:var(--accent);box-shadow:0 0 30px rgba(0,255,255,.55);transform:translateY(-2px)}
 .btn.ghost:hover{border-color:var(--stroke-acc);color:var(--accent)}
+.btn.danger{color:#ff6b6b;border-color:rgba(255,107,107,.35)}
+.btn.danger:hover{border-color:#ff6b6b;color:#ff8c8c;box-shadow:0 0 20px rgba(255,107,107,.25)}
 .btn:disabled{opacity:.5;cursor:wait;transform:none!important}
 .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
 
@@ -471,6 +473,7 @@ body{
         </div>
       </div>
       <div class="actions">
+        <button type="button" id="btnReset" class="btn danger">Restablecer todo</button>
         <button type="button" id="btnDisconnect" class="btn ghost">Desconectar</button>
         <button type="submit" id="btnUpdate" class="btn primary">Actualizar estado</button>
       </div>
@@ -1463,6 +1466,29 @@ body{
 
     $('btnDisconnect').addEventListener('click', function () {
       if (socket && socket.connected) socket.emit('disconnectRpc');
+    });
+
+    $('btnReset').addEventListener('click', function () {
+      if (!confirm('¿Restablecer todo?\n\nDesconecta el RPC, borra los ajustes (data/settings.json), las imágenes subidas (public/uploads) y deja el panel 100% limpio, como un despliegue nuevo (también se limpia el localStorage de este navegador).\n\nNo se puede deshacer.')) return;
+      var btn = $('btnReset');
+      btn.disabled = true;
+      btn.textContent = 'Restableciendo…';
+      fetch('/api/reset', { method: 'POST' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || !j.ok) throw new Error((j && j.error) || 'Error al restablecer');
+          var keys = Object.keys(LS);
+          for (var i = 0; i < keys.length; i++) {
+            try { localStorage.removeItem(LS[keys[i]]); } catch (e) { /* noop */ }
+          }
+          toast('Panel restablecido. Recargando…', 'ok');
+          setTimeout(function () { location.reload(); }, 700);
+        })
+        .catch(function (err) {
+          toast(err.message || 'Error al restablecer', 'err');
+          btn.disabled = false;
+          btn.textContent = 'Restablecer todo';
+        });
     });
 
     // Perfiles

@@ -1160,6 +1160,52 @@ function stopStateRotation() {
 }
 
 /* ============================================================
+   Reset total del contenedor
+   Vuelve el panel al estado de un despliegue nuevo: desconecta
+   el RPC, para todas las rotaciones, borra el custom status,
+   resetea data/settings.json a valores vacíos y limpia las
+   imágenes subidas (public/uploads). Así un bot-hosting que
+   conservara datos previos queda limpio desde la misma web.
+   ============================================================ */
+
+function clearUploads() {
+  try {
+    if (!fs.existsSync(UPLOAD_DIR)) return true;
+    for (const f of fs.readdirSync(UPLOAD_DIR)) {
+      const p = path.join(UPLOAD_DIR, f);
+      try { fs.unlinkSync(p); } catch (e) { /* noop */ }
+    }
+    return true;
+  } catch (err) {
+    console.error('[RESET] no se pudieron limpiar uploads:', err.message);
+    return false;
+  }
+}
+
+function resetAll() {
+  stopRotation();
+  stopStateRotation();
+  stopProfileRotation();
+  lineStatus = null;
+  disconnectRpc();
+  saveSettings({ ...DEFAULT_SETTINGS });
+  clearUploads();
+
+  const fresh = {
+    settings: sanitizeSettings(loadSettings()),
+    rpc: getRpcState(),
+    rotation: getRotationState(),
+    stateRotation: getStateRotationState(),
+    profileRotation: getProfileRotationState(),
+  };
+  io.emit('init', fresh);
+  io.emit('rpcStatus', getRpcState());
+  io.emit('presenceUpdated', null);
+  log.ok('Reset total: settings, uploads y RPC limpios (estado de despliegue nuevo).');
+  return fresh;
+}
+
+/* ============================================================
    REST (compatibilidad + pruebas)
    ============================================================ */
 
@@ -1195,6 +1241,16 @@ app.post('/api/update', async (req, res) => {
   } catch (err) {
     log.error(`POST /api/update: ${err.message}`);
     res.status(500).json({ ok: false, error: err.message, state: getRpcState() });
+  }
+});
+
+app.post('/api/reset', (req, res) => {
+  try {
+    const fresh = resetAll();
+    res.json({ ok: true, ...fresh });
+  } catch (err) {
+    log.error(`POST /api/reset: ${err.message}`);
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
@@ -1413,6 +1469,16 @@ io.on('connection', (socket) => {
       disconnectRpc();
     } catch (err) {
       log.error(`Socket disconnectRpc: ${err.message}`);
+    }
+  });
+
+  socket.on('resetAll', (ack) => {
+    try {
+      const fresh = resetAll();
+      if (typeof ack === 'function') ack({ ok: true, ...fresh });
+    } catch (err) {
+      log.error(`Socket resetAll: ${err.message}`);
+      if (typeof ack === 'function') ack({ ok: false, error: err.message });
     }
   });
 });
