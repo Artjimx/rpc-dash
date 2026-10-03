@@ -11,6 +11,21 @@ data/autoresponder.json
 data/afk.json
 data/status_persist.json
 
+# Selfbot de comandos por prefijo (solo local, no se publica)
+main.js
+commands/
+utils/
+plugins/
+ai/
+providers/
+config/
+data/commandHandler/
+data/reminders.json
+data/triggers.json
+data/afk/
+data/autoresponder/
+data/status_persist/
+
 # Imágenes subidas en runtime
 public/uploads/
 

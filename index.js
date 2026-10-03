@@ -28,25 +28,10 @@ import cors from 'cors';
 import multer from 'multer';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import fetch from 'node-fetch';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Client, RichPresence, CustomStatus, Intents, Constants, Guild, GuildMember } from 'discord.js-selfbot-v13';
-import { bootCommandSystem } from './main.js';
-import { getConfig } from './config/configManager.js';
-
-/* ============================================================
-   Inmunidad — Monkey-patches en Guild / GuildMember
-   Neutraliza endpoints de telemetría y administración que
-   podrían exponer información sensible o generar tráfico
-   innecesario (anti-detección de selfbot).
-   ============================================================ */
-Guild.prototype.fetchBans = async () => new Map();
-Guild.prototype.fetchInvites = async () => new Map();
-Guild.prototype.fetchWebhooks = async () => new Map();
-Guild.prototype.fetchAuditLogs = async () => ({ entries: new Map() });
-GuildMember.prototype.fetch = async function patchedMemberFetch() { return this; };
+import { Client, RichPresence, CustomStatus, Intents, Constants } from 'discord.js-selfbot-v13';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.SERVER_PORT) || Number(process.env.PORT) || 3000;
@@ -718,15 +703,6 @@ async function connectRpc(token) {
         log.error(`Fallo al replicar la actividad: ${e.message}`);
       }
 
-      /* Selfbot de comandos (main.js): DESHABILITADO temporalmente.
-         Solo funciona RPC. Para reactivar, descomentar las 2 líneas de abajo. */
-      // try {
-      //   const cmdRegistry = await bootCommandSystem(c);
-      //   log.ok(`Selfbot de comandos listo (${cmdRegistry ? cmdRegistry.size() : 0} comandos).`);
-      // } catch (e) {
-      //   log.warn(`Selfbot de comandos no iniciado: ${e.message}`);
-      // }
-      log.ok('Selfbot de comandos deshabilitado — solo RPC activo.');
       io.emit('rpcStatus', getRpcState());
     });
 
@@ -1165,13 +1141,14 @@ function stopStateRotation() {
    ============================================================ */
 
 app.get('/health', (req, res) => {
-  const reg = client && client._cmdRegistry;
-  const prefix = getConfig().prefix;
   res.json({
     ok: true,
     uptime: Math.round(process.uptime()),
     connected: rpcState.connected,
-    selfbot: reg ? { active: true, commands: reg.size(), prefix } : { active: false, commands: 0, prefix },
+    rpc: {
+      active: rpcState.connected,
+      activity: currentActivity ? currentActivity.name || currentActivity.details || 'activo' : null,
+    },
     ts: new Date().toISOString(),
   });
 });
