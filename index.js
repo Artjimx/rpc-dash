@@ -171,9 +171,12 @@ const SETTING_FIELDS = [
 function persistSettings(body) {
   const next = loadSettings();
   for (const k of SETTING_FIELDS) {
-    if (body[k] !== undefined) {
-      next[k] = (typeof body[k] === 'string' ? body[k].trim() : body[k]) || '';
-    }
+    if (body[k] === undefined) continue;
+    const val = typeof body[k] === 'string' ? body[k].trim() : body[k];
+    /* El token no se borra con un valor vacío: evita que un navegador
+       sin token guardado localmente sobrescriba el de settings.json. */
+    if (k === 'userToken' && (val === '' || val == null)) continue;
+    next[k] = val || '';
   }
   if (Array.isArray(body.profileStatuses)) next.profileStatuses = body.profileStatuses;
   if (body.profileRotationSeconds !== undefined) next.profileRotationSeconds = Number(body.profileRotationSeconds) || 60;
@@ -505,7 +508,22 @@ function buildActivities(c, activity) {
 }
 
 function getRpcState() {
-  return { ...rpcState, activity: currentActivity };
+  return { ...rpcState, activity: sanitizeActivity(currentActivity) };
+}
+
+/* Los payloads que salen al navegador nunca deben incluir el token.
+   El USER_TOKEN solo viaja del cliente → servidor. */
+function sanitizeActivity(a) {
+  if (!a || typeof a !== 'object') return a;
+  const { userToken, ...rest } = a;
+  return rest;
+}
+
+function sanitizeSettings(s) {
+  if (!s || typeof s !== 'object') return s;
+  const copy = { ...s };
+  delete copy.userToken;
+  return copy;
 }
 
 /* ============================================================
@@ -680,6 +698,7 @@ async function connectRpc(token) {
     c.on('ready', async () => {
       rpcState.connected = true;
       rpcState.error = null;
+      rpcState.clientId = (c.user && c.user.id) || null;
       reconnectAttempts = 0;
       const tag = (c.user && (c.user.tag || c.user.username || c.user.id)) || 'usuario';
       log.ok(`Conectado a Discord como ${tag} (vía USER_TOKEN)`);
@@ -763,6 +782,7 @@ async function connectRpc(token) {
       }
       connectedToken = tok;
       try { c.presence.userId = c.user.id; } catch (e) { /* noop */ }
+      rpcState.clientId = (c.user && c.user.id) || null;
     } catch (err) {
       const msg = describeTokenError(err);
       rpcState.connected = false;
@@ -827,6 +847,9 @@ function scheduleReconnect(reason) {
 
 function disconnectRpc() {
   userDisconnected = true;
+  stopRotation();
+  stopStateRotation();
+  stopProfileRotation();
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   reconnectAttempts = 0;
   if (client) {
@@ -892,7 +915,7 @@ async function updatePresence(activity) {
   if (!token) {
     rpcState.error = 'Falta el USER_TOKEN (USER_TOKEN en .env o en el campo del dashboard).';
     log.error(`No se aplicó la actividad: ${rpcState.error}`);
-    io.emit('presenceUpdated', currentActivity);
+    io.emit('presenceUpdated', sanitizeActivity(currentActivity));
     return { ok: false, error: rpcState.error };
   }
 
@@ -900,7 +923,7 @@ async function updatePresence(activity) {
   if (problems.length) {
     rpcState.error = problems[0];
     log.error(`Actividad rechazada antes de enviarse: ${problems[0]}`);
-    io.emit('presenceUpdated', currentActivity);
+    io.emit('presenceUpdated', sanitizeActivity(currentActivity));
     return { ok: false, error: rpcState.error };
   }
 
@@ -913,12 +936,12 @@ async function updatePresence(activity) {
     rpcState.error = null;
     log.ok(`Presencia aplicada en Discord (${activity.name || 'PRESENCE'})`);
     log.rpc('setPresence → payload exacto enviado a Discord', client.presence.activities.map((a) => a.toJSON()));
-    io.emit('presenceUpdated', currentActivity);
+    io.emit('presenceUpdated', sanitizeActivity(currentActivity));
     return { ok: true, connected: true };
   } catch (err) {
     rpcState.error = describeRpcError(err);
     log.error(`Fallo al aplicar la presencia: ${rpcState.error}`);
-    io.emit('presenceUpdated', currentActivity);
+    io.emit('presenceUpdated', sanitizeActivity(currentActivity));
     return { ok: false, connected: false, error: rpcState.error };
   }
 }
@@ -1155,8 +1178,10 @@ app.get('/health', (req, res) => {
 
 app.get('/api/status', (req, res) => {
   res.json({
-    settings: loadSettings(),
+    settings: sanitizeSettings(loadSettings()),
     rpc: getRpcState(),
+    rotation: getRotationState(),
+    stateRotation: getStateRotationState(),
     profileRotation: getProfileRotationState(),
   });
 });
@@ -1257,7 +1282,7 @@ app.post('/api/state-rotation', (req, res) => {
 io.on('connection', (socket) => {
   console.log(`[SOCKET] Cliente conectado (${socket.id})`);
   socket.emit('init', {
-    settings: loadSettings(),
+    settings: sanitizeSettings(loadSettings()),
     rpc: getRpcState(),
     rotation: getRotationState(),
     stateRotation: getStateRotationState(),
@@ -1416,6 +1441,13 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 process.on('SIGINT', () => {
   console.log('\nCerrando servidor…');
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  stopRotation();
+  stopStateRotation();
+  stopProfileRotation();
+  for (const t of [profileTimer, stateTimer, rotationTimer]) {
+    if (t) clearInterval(t);
+  }
   try { if (client) client.destroy(); } catch (e) { /* noop */ }
-  process.exit(0);
+  httpServer.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 2000).unref();
 });

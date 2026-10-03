@@ -1,15 +1,17 @@
 # Dependencias
 node_modules/
 
-# Token y configuración local (contiene el USER_TOKEN de Discord)
-data/settings.json
+# Configuración runtime del usuario (contiene el USER_TOKEN de Discord
+# y los ajustes guardados desde el dashboard). Nunca debe subirse:
+# cada usuario en bot-hosting arranca con estado limpio.
+data/
+public/uploads/
+*.log
+
+# Token y configuración local
 .env
 *.env
-
-# Datos del selfbot de comandos (runtime)
-data/autoresponder.json
-data/afk.json
-data/status_persist.json
+.env.local
 
 # Selfbot de comandos por prefijo (solo local, no se publica)
 main.js
@@ -19,18 +21,8 @@ plugins/
 ai/
 providers/
 config/
-data/commandHandler/
-data/reminders.json
-data/triggers.json
-data/afk/
-data/autoresponder/
-data/status_persist/
 
-# Imágenes subidas en runtime
-public/uploads/
-
-# Logs y SO
-*.log
+# SO
 .DS_Store
 Thumbs.db
 

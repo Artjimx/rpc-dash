@@ -1422,11 +1422,6 @@ body{
         return;
       }
       var data = readAdvanced();
-      if (!data.userToken) {
-        toast('Introduce tu USER_TOKEN para conectar con Discord', 'err');
-        $('inUserToken').focus();
-        return;
-      }
       var btn = $('btnUpdate');
       btn.disabled = true;
       btn.textContent = 'Actualizando…';
