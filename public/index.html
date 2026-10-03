@@ -997,6 +997,8 @@ body{
     var b2t = $('inBtn2Text').value.trim(), b2u = $('inBtn2Url').value.trim();
     var hasBtn = (b1t && b1u) || (b2t && b2u);
     var appId = $('inAppId').value.trim();
+    var platform = $('inPlatform').value;
+    var btnPlatforms = ['desktop', 'embedded', 'android', 'ios'];
 
     if (hasBtn) {
       ['inBtn1Url', 'inBtn2Url'].forEach(function (id) {
@@ -1010,12 +1012,13 @@ body{
     var type = $('inType').value;
     if (type === 'streaming') {
       var su = normalizeUrl($('inStreamUrl').value);
-      if (su === '') msgs.push('Streaming: escribe una URL Twitch/YouTube válida (empezando por https://).');
-      else if (!/twitch\.tv|youtube\.com|youtu\.be/i.test(su)) msgs.push('Streaming: Discord solo muestra Twitch o YouTube. Un canal inexistente o apagado oculta la actividad.');
-      else msgs.push('Streaming: el canal debe existir y estar EN VIVO, si no Discord no muestra la actividad.');
+      if (su === '') msgs.push('Streaming: falta la Stream URL (ej. https://twitch.tv/usuario). Se publica streaming pero sin enlace de transmisión.');
+      else if (!/twitch\.tv|youtube\.com|youtu\.be/i.test(su)) msgs.push('Streaming: Discord solo enlaza la transmisión con Twitch o YouTube.');
     }
 
-    if (hasBtn && !/^[0-9]{17,20}$/.test(appId)) {
+    if (hasBtn && btnPlatforms.indexOf(platform) === -1) {
+      msgs.push('Botones omitidos: la plataforma «' + platform + '» no los soporta (solo desktop/web/móvil). El streaming se publica igual.');
+    } else if (hasBtn && !/^[0-9]{17,20}$/.test(appId)) {
       msgs.push('Botones: se necesita un App ID válido y una aplicación validada en el Developer Portal para que se muestren.');
     }
     if ((normalizeUrl($('inLargeUrl').value) || normalizeUrl($('inSmallUrl').value)) && !/^[0-9]{17,20}$/.test(appId)) {

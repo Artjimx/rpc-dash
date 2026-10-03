@@ -269,6 +269,11 @@ const PLATFORM_MAP = {
 };
 const VALID_PLATFORMS = new Set(['desktop', 'samsung', 'xbox', 'ios', 'android', 'embedded', 'ps4', 'ps5']);
 
+/* Plataformas cuyo cliente de Discord renderiza botones RPC.
+   Consolas (ps4/ps5/xbox) y TVs (samsung) no los muestran: en esas
+   plataformas los botones se omiten (nunca rompen el streaming). */
+const BUTTON_PLATFORMS = new Set(['desktop', 'embedded', 'android', 'ios']);
+
 /* ============================================================
    Logging (consola de Node)
    ============================================================ */
@@ -343,21 +348,22 @@ function isValidStreamUrl(url) {
 }
 
 function validateActivity(a) {
-  const problems = [];
+  /* Filosofía: el modo streaming PRESENTA siempre lo configurado. El
+     servidor nunca bloquea por plataforma ni oculta el streaming por
+     decisión propia: si algo no aparece es porque el usuario no llenó
+     ese campo, y solo se avisa (warning), jamás se rechaza. */
   const warnings = [];
   const type = TYPE_BY_NAME[String(a.type || '').toLowerCase()];
   const stream = normalizeUrl(a.streamUrl, false);
 
   if (type === ACTIVITY_TYPES.STREAMING) {
     if (!stream) {
-      problems.push('Streaming requiere una «Stream URL» válida (ej. https://twitch.tv/usuario). Sin ella Discord descarta el evento silenciosamente.');
+      warnings.push('Streaming: falta la «Stream URL» (ej. https://twitch.tv/usuario). La actividad se publica como streaming pero sin URL Discord no muestra el enlace.');
     } else if (!/twitch\.tv|youtube\.com|youtu\.be/i.test(stream)) {
-      /* Discord solo renderiza streaming con dominios Twitch/YouTube. */
-      problems.push('Streaming solo se muestra en Discord si la «Stream URL» es de Twitch o YouTube (ej. https://twitch.tv/usuario).');
-    } else {
-      /* Aviso no bloqueante: si el canal no existe / no está en vivo,
-         Discord oculta la actividad de streaming. */
-      warnings.push('Streaming: asegúrate de que el canal Twitch/YouTube exista y esté EN VIVO, si no Discord no muestra la actividad.');
+      /* Discord renderiza el enlace de streaming solo con dominios
+         Twitch/YouTube; con otro dominio el streaming aún se muestra,
+         solo sin el botón/enlace de la transmisión. */
+      warnings.push('Streaming: Discord solo enlaza la transmisión con Twitch o YouTube (ej. https://twitch.tv/usuario). El streaming se sigue presentando.');
     }
   }
 
@@ -367,13 +373,18 @@ function validateActivity(a) {
     warnings.push('Imágenes requieren un «App ID» válido (17-20 dígitos): sin él Discord no renderiza la imagen, solo el nombre y detalles.');
   }
 
+  const platform = PLATFORM_MAP[String(a.platform || '').toLowerCase()];
   const hasBtn = (a.button1Text && normalizeUrl(a.button1Url, false)) ||
                  (a.button2Text && normalizeUrl(a.button2Url, false));
-  if (hasBtn && !isValidAppId(a.applicationId)) {
-    warnings.push('Botones: Discord solo los muestra con un «App ID» válido y una aplicación validada en el Developer Portal.');
+  if (hasBtn) {
+    if (platform && !BUTTON_PLATFORMS.has(platform)) {
+      warnings.push(`Botones omitidos: la plataforma «${a.platform}» no los soporta (consolas/TV). El streaming se publica igual.`);
+    } else if (!isValidAppId(a.applicationId)) {
+      warnings.push('Botones: Discord solo los muestra con un «App ID» válido y una aplicación validada en el Developer Portal.');
+    }
   }
 
-  return { problems, warnings };
+  return { problems: [], warnings };
 }
 
 function toMs(v) {
@@ -476,16 +487,12 @@ async function buildRichPresence(c, a) {
   if (a.details) rp.setDetails(String(a.details).slice(0, 128));
   if (a.state) rp.setState(String(a.state).slice(0, 128));
 
-  /* El cliente de Discord solo pinta la tarjeta roja «En directo» de
-     Streaming en plataformas desktop/web. Con una consola (ps5, ps4,
-     xbox, samsung, android, ios) Discord degrada el estado y no muestra
-     la transmisión; por eso en Streaming se fuerza desktop. */
+  /* Se respeta la plataforma elegida por el usuario en cualquier tipo
+     (incluido Streaming): nunca se impone desktop por decisión propia.
+     Si Discord no pinta el streaming en una plataforma concreta, es
+     un límite del cliente, no algo que debamos "corregir" nosotros. */
   const platform = PLATFORM_MAP[String(a.platform || '').toLowerCase()];
-  const platformEffective =
-    type === ACTIVITY_TYPES.STREAMING
-      ? 'desktop'
-      : (platform && VALID_PLATFORMS.has(platform) ? platform : null);
-  if (platformEffective) rp.setPlatform(platformEffective);
+  if (platform && VALID_PLATFORMS.has(platform)) rp.setPlatform(platform);
 
   if (type === ACTIVITY_TYPES.STREAMING) {
     const stream = normalizeUrl(a.streamUrl, false);
@@ -539,10 +546,15 @@ async function buildRichPresence(c, a) {
   }
 
   const buttons = [];
-  const b1u = normalizeUrl(a.button1Url, false);
-  const b2u = normalizeUrl(a.button2Url, false);
-  if (a.button1Text && b1u) buttons.push({ name: String(a.button1Text).slice(0, 32), url: b1u });
-  if (a.button2Text && b2u) buttons.push({ name: String(a.button2Text).slice(0, 32), url: b2u });
+  const platformButtonsOk = !platform || BUTTON_PLATFORMS.has(platform);
+  if (platformButtonsOk) {
+    const b1u = normalizeUrl(a.button1Url, false);
+    const b2u = normalizeUrl(a.button2Url, false);
+    if (a.button1Text && b1u) buttons.push({ name: String(a.button1Text).slice(0, 32), url: b1u });
+    if (a.button2Text && b2u) buttons.push({ name: String(a.button2Text).slice(0, 32), url: b2u });
+  } else if (a.button1Text || a.button2Text) {
+    log.warn(`Botones omitidos: la plataforma «${a.platform}» no los soporta (solo desktop/web/móvil).`);
+  }
   if (buttons.length) {
     try { rp.setButtons(...buttons); } catch (e) { log.warn(`Botones ignorados: ${e.message}`); }
   }
