@@ -217,6 +217,100 @@ body{
 .btn:disabled{opacity:.5;cursor:wait;transform:none!important}
 .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
 
+/* ============================================================
+   Editor de recorte (calibración manual de la imagen)
+   ============================================================ */
+.crop-modal{
+  position:fixed;inset:0;z-index:60;
+  display:none;align-items:center;justify-content:center;padding:22px;
+  background:rgba(4,4,10,.78);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+}
+.crop-modal.open{display:flex}
+.crop-box{
+  width:100%;max-width:880px;max-height:100%;
+  display:flex;flex-direction:column;
+  background:rgba(18,18,28,.86);
+  border:1px solid var(--stroke);border-radius:22px;
+  box-shadow:0 30px 80px rgba(0,0,0,.6);
+  overflow:hidden;
+}
+.crop-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:16px 20px;border-bottom:1px solid var(--stroke);
+}
+.crop-head h3{font:600 13px/1 'Space Grotesk';letter-spacing:.14em;text-transform:uppercase}
+.crop-head .sub{font-size:10px;color:var(--text-3);letter-spacing:.03em;margin-top:5px}
+.crop-close{
+  border:0;background:transparent;color:var(--text-3);cursor:pointer;
+  font-size:20px;line-height:1;padding:4px 8px;border-radius:8px;
+}
+.crop-close:hover{color:var(--danger);background:rgba(255,84,112,.10)}
+
+/* lienzo: el área donde se ve la imagen y se arrastra el cuadro */
+.crop-stage{
+  position:relative;margin:0;padding:18px;
+  display:flex;align-items:center;justify-content:center;
+  background:
+    linear-gradient(45deg,rgba(255,255,255,.02) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.02) 75%),
+    linear-gradient(45deg,rgba(255,255,255,.02) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.02) 75%);
+  background-size:18px 18px;background-position:0 0,9px 9px;
+  min-height:0;
+}
+.crop-canvas-box{
+  position:relative;line-height:0;border-radius:6px;overflow:hidden;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);
+  touch-action:none;user-select:none;-webkit-user-select:none;
+}
+.crop-canvas-box canvas{display:block;max-width:100%}
+.crop-canvas-box.grabbing{cursor:grabbing}
+.crop-canvas-box.grab{cursor:grab}
+
+/* velo: oscurece fuera del cuadro de selección */
+.crop-veil{position:absolute;inset:0;background:rgba(0,0,0,.58);pointer-events:none}
+.crop-sel{
+  position:absolute;border:1px solid var(--accent);
+  box-shadow:0 0 0 1px rgba(0,0,0,.5),0 0 22px rgba(0,255,255,.35);
+  cursor:move;box-sizing:border-box;
+}
+/* guía de tercios, como en la tarjeta de actividad */
+.crop-sel::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(to right,transparent 33.33%,rgba(0,255,255,.35) 33.33%,rgba(0,255,255,.35) 33.6%,transparent 33.6%,transparent 66.4%,rgba(0,255,255,.35) 66.4%,rgba(0,255,255,.35) 66.66%,transparent 66.66%),
+    linear-gradient(to bottom,transparent 33.33%,rgba(0,255,255,.35) 33.33%,rgba(0,255,255,.35) 33.6%,transparent 33.6%,transparent 66.4%,rgba(0,255,255,.35) 66.4%,rgba(0,255,255,.35) 66.66%,transparent 66.66%);
+}
+.crop-handle{
+  position:absolute;width:14px;height:14px;border-radius:50%;
+  background:var(--accent);border:2px solid #04040a;
+  box-shadow:0 0 12px rgba(0,255,255,.6);
+}
+.crop-handle.br{right:-7px;bottom:-7px;cursor:nwse-resize}
+.crop-handle.tl{left:-7px;top:-7px;cursor:nwse-resize}
+.crop-handle.tr{right:-7px;top:-7px;cursor:nesw-resize}
+.crop-handle.bl{left:-7px;bottom:-7px;cursor:nesw-resize}
+
+.crop-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:14px 20px;border-top:1px solid var(--stroke);flex-wrap:wrap;
+}
+.crop-opts{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.crop-opt{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--text-3);letter-spacing:.08em;text-transform:uppercase}
+.crop-opt select{
+  font:600 10px/1 'Space Grotesk';letter-spacing:.08em;text-transform:uppercase;
+  background:#12121c;color:var(--text);border:1px solid var(--stroke);
+  border-radius:8px;padding:7px 9px;cursor:pointer;
+}
+.crop-info{font-size:10px;color:var(--text-3);letter-spacing:.03em}
+.crop-info b{color:var(--accent);font-weight:600}
+.crop-info b.warn{color:#ffb454}
+.crop-btns{display:flex;gap:9px}
+.crop-btns .btn{padding:11px 15px;font-size:10px}
+@media (max-width:620px){
+  .crop-foot{flex-direction:column;align-items:stretch}
+  .crop-btns{justify-content:flex-end}
+}
+
 .empty{color:var(--text-3);font-size:13px;padding:26px 8px;text-align:center;border:1px dashed var(--stroke);border-radius:12px;letter-spacing:.03em}
 
 /* ---------- Perfiles y rotación ---------- */
@@ -431,8 +525,8 @@ body{
           <input type="text" id="inLargeUrl" placeholder="URL https, nombre de asset (ej: bigimage) o App ID">
           <div class="upload-row">
             <input type="file" id="inLargeFile" accept="image/*" hidden>
-            <button type="button" class="btn ghost" id="btnLargeUpload">Subir Imagen</button>
-            <span class="up-hint" id="assetHintLarge">Pega la URL o sube el archivo: con un Application ID válido la imagen se registra sola en los Art Assets de tu app.</span>
+            <button type="button" class="btn ghost" id="btnLargeUpload">Elegir y recortar…</button>
+            <span class="up-hint" id="assetHintLarge">Pega la URL o elige el archivo: se abre el editor para calibrar el encuadre y la imagen se registra sola en los Art Assets de tu app.</span>
           </div>
         </div>
         </div>
@@ -445,8 +539,8 @@ body{
           <input type="text" id="inSmallUrl" placeholder="URL https, nombre de asset (ej: smallicon) o App ID">
           <div class="upload-row">
             <input type="file" id="inSmallFile" accept="image/*" hidden>
-            <button type="button" class="btn ghost" id="btnSmallUpload">Subir Imagen</button>
-            <span class="up-hint" id="assetHintSmall">Pega la URL o sube el archivo: con un Application ID válido la imagen se registra sola en los Art Assets de tu app.</span>
+            <button type="button" class="btn ghost" id="btnSmallUpload">Elegir y recortar…</button>
+            <span class="up-hint" id="assetHintSmall">Pega la URL o elige el archivo: se abre el editor para calibrar el encuadre y la imagen se registra sola en los Art Assets de tu app.</span>
           </div>
         </div>
         </div>
@@ -600,6 +694,53 @@ body{
 
 <div class="toasts" id="toasts"></div>
 
+<!-- ============================================================
+     Editor de recorte: al elegir una imagen se abre esta UI para
+     calibrar a mano qué parte de la imagen se sube como asset.
+     ============================================================ -->
+<div class="crop-modal" id="cropModal" role="dialog" aria-modal="true" aria-labelledby="cropTitle">
+  <div class="crop-box">
+    <div class="crop-head">
+      <div>
+        <h3 id="cropTitle">Recortar imagen</h3>
+        <div class="sub" id="cropSub">Arrastra el cuadro para encuadrar. El formato de la tarjeta de actividad es cuadrado.</div>
+      </div>
+      <button type="button" class="crop-close" id="cropClose" title="Cancelar (Esc)" aria-label="Cancelar">&times;</button>
+    </div>
+
+    <div class="crop-stage" id="cropStage">
+      <div class="crop-canvas-box" id="cropBox">
+        <canvas id="cropCanvas"></canvas>
+        <div class="crop-veil" id="cropVeil"></div>
+        <div class="crop-sel" id="cropSel">
+          <span class="crop-handle tl"></span>
+          <span class="crop-handle tr"></span>
+          <span class="crop-handle bl"></span>
+          <span class="crop-handle br"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="crop-foot">
+      <div class="crop-opts">
+        <label class="crop-opt">Salida
+          <select id="cropSize">
+            <option value="512">512 × 512</option>
+            <option value="1024">1024 × 1024</option>
+            <option value="2048">2048 × 2048</option>
+          </select>
+        </label>
+        <button type="button" class="btn ghost" id="cropWhole">Imagen completa</button>
+      </div>
+      <div class="crop-info" id="cropInfo"></div>
+      <div class="crop-btns">
+        <button type="button" class="btn ghost" id="cropCancel">Cancelar</button>
+        <button type="button" class="btn primary" id="cropApply">Recortar y usar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    PRESENCE·OS v2 — Cliente Socket.io (no bloquea la UI)
@@ -669,6 +810,315 @@ body{
     formSaveTimer = setTimeout(saveForm, 300);
   }
 
+  /* ============================================================
+     Editor de recorte (calibración manual)
+     Al seleccionar o pegar una imagen se abre este editor para
+     elegir a mano qué parte se sube. La salida siempre es cuadrada,
+     que es el formato que Discord muestra en la tarjeta de
+     actividad, y siempre de al menos 512 px para no ser rechazada.
+     ============================================================ */
+  var CROP_MIN = 512;
+  var crop = {
+    open: false, file: null, img: null, slot: 'large', urlId: '', btnId: '', input: null,
+    sel: { x: 0, y: 0, w: 0, h: 0 }, view: { scale: 1, w: 0, h: 0 }, drag: null,
+  };
+
+  function cropEl(id) { return document.getElementById(id); }
+
+  function cropFitStage() {
+    var stage = cropEl('cropStage');
+    if (!stage || !crop.img) return;
+    var availW = Math.max(160, stage.clientWidth - 36);
+    var availH = Math.max(160, stage.clientHeight - 36);
+    var scale = Math.min(availW / crop.img.width, availH / crop.img.height, 1);
+    if (!(scale > 0)) scale = 1;
+    crop.view.scale = scale;
+    crop.view.w = Math.max(1, Math.round(crop.img.width * scale));
+    crop.view.h = Math.max(1, Math.round(crop.img.height * scale));
+
+    var canvas = cropEl('cropCanvas');
+    canvas.width = crop.view.w;
+    canvas.height = crop.view.h;
+    canvas.style.width = crop.view.w + 'px';
+    canvas.style.height = crop.view.h + 'px';
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, crop.view.w, crop.view.h);
+    ctx.drawImage(crop.img, 0, 0, crop.view.w, crop.view.h);
+  }
+
+  /* El cuadro es cuadrado y siempre cabe dentro de la imagen. */
+  function cropClamp(minSize) {
+    var vw = crop.view.w, vh = crop.view.h;
+    var s = crop.sel;
+    var maxW = vw, maxH = vh;
+    if (maxH < maxW) maxW = maxH; else maxH = maxW;   /* cuadrado */
+    if (minSize) {
+      minSize = Math.min(minSize, maxW);
+      if (s.w < minSize) s.w = minSize;
+      if (s.h < minSize) s.h = minSize;
+    }
+    s.w = Math.min(s.w, maxW);
+    s.h = s.w;
+    if (s.x < 0) s.x = 0;
+    if (s.y < 0) s.y = 0;
+    if (s.x + s.w > vw) s.x = vw - s.w;
+    if (s.y + s.h > vh) s.y = vh - s.h;
+  }
+
+  /* Tamaño mínimo en pantalla: el recorte no puede ser más pequeño que
+     512 px en la imagen original, o Discord lo rechaza. */
+  function cropMinView() {
+    if (!crop.img) return 0;
+    /* 512 px de ORIGEN convertidos a px de vista (vista = origen * escala),
+       con un suelo de 24 px para que el manejador siga siendo agarrable. */
+    return Math.max(24, CROP_MIN * crop.view.scale);
+  }
+
+  function cropPaint() {
+    var box = cropEl('cropBox');
+    var veil = cropEl('cropVeil');
+    var sel = cropEl('cropSel');
+    if (!box || !veil || !sel) return;
+    var vw = crop.view.w, vh = crop.view.h;
+    box.style.width = vw + 'px';
+    box.style.height = vh + 'px';
+
+    var s = crop.sel;
+    /* El velo se pincha con un recorte de 4 lados (nada de box-shadow
+       gigante: el cuadro debe quedar recortado de verdad). */
+    var sides = [
+      'left:0;top:0;width:' + s.x + 'px;height:' + vh + 'px',
+      'top:0;left:' + s.x + 'px;width:' + s.w + 'px;height:' + s.y + 'px',
+      'top:' + (s.y + s.h) + 'px;left:' + s.x + 'px;width:' + s.w + 'px;height:' + Math.max(0, vh - s.y - s.h) + 'px',
+      'left:0;top:' + (s.y + s.h) + 'px;width:' + s.x + 'px;height:' + Math.max(0, vh - s.y - s.h) + 'px',
+    ];
+    veil.innerHTML = sides.map(function (css) { return '<i style="position:absolute;' + css + '"></i>'; }).join('');
+
+    sel.style.left = s.x + 'px';
+    sel.style.top = s.y + 'px';
+    sel.style.width = s.w + 'px';
+    sel.style.height = s.h + 'px';
+
+    var info = cropEl('cropInfo');
+    if (info && crop.img) {
+      var px = Math.round(s.w / crop.view.scale);
+      var out = parseInt(cropEl('cropSize').value, 10) || CROP_MIN;
+      var small = px < CROP_MIN;
+      info.innerHTML = 'Recorte: <b>' + px + '×' + px + ' px</b> de origen · salida <b>' + out + '×' + out +
+        '</b>' + (small ? ' · <b class="warn">se ampliará con suavizado</b>' : '');
+    }
+  }
+
+  function cropSelectWhole() {
+    var side = Math.min(crop.view.w, crop.view.h);
+    crop.sel = { x: (crop.view.w - side) / 2, y: (crop.view.h - side) / 2, w: side, h: side };
+    cropClamp(cropMinView());
+    cropPaint();
+  }
+
+  function cropPointFromEvent(e) {
+    var box = cropEl('cropBox').getBoundingClientRect();
+    return { x: e.clientX - box.left, y: e.clientY - box.top };
+  }
+
+  function cropBindDrag() {
+    var box = cropEl('cropBox');
+    if (box.__bound) return;
+    box.__bound = true;
+
+    box.addEventListener('pointerdown', function (e) {
+      if (!crop.open) return;
+      var corner = null;
+      if (e.target && e.target.classList && e.target.classList.contains('crop-handle')) {
+        ['tl', 'tr', 'bl', 'br'].forEach(function (c) {
+          if (e.target.classList.contains(c)) corner = c;
+        });
+        corner = corner || 'br';
+      }
+      var p = cropPointFromEvent(e);
+      crop.drag = {
+        corner: corner, ox: p.x, oy: p.y,
+        start: { x: crop.sel.x, y: crop.sel.y, w: crop.sel.w, h: crop.sel.h },
+      };
+      box.classList.add('grabbing');
+      try { box.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      e.preventDefault();
+    });
+
+    box.addEventListener('pointermove', function (e) {
+      if (!crop.open || !crop.drag) return;
+      var p = cropPointFromEvent(e);
+      var dx = p.x - crop.drag.ox, dy = p.y - crop.drag.oy;
+      var s = crop.sel, st = crop.drag.start;
+      var min = cropMinView();
+
+      if (crop.drag.corner) {
+        /* Se agranda desde la esquina arrastrada, manteniendo fijo el
+           vértice opuesto. Cada esquina tiene su signo y su ancla. */
+        var corner = crop.drag.corner;
+        var dx2 = dx, dy2 = dy;
+        var size;
+        if (corner === 'br') size = st.w + (dx2 + dy2) / 2;
+        else if (corner === 'tl') size = st.w - (dx2 + dy2) / 2;
+        else if (corner === 'tr') size = st.w + (dx2 - dy2) / 2;
+        else size = st.w - (dx2 - dy2) / 2;
+
+        size = Math.max(min, Math.min(size, Math.min(crop.view.w, crop.view.h)));
+        s.w = size; s.h = size;
+
+        if (corner === 'br' || corner === 'tr') s.x = st.x;
+        else s.x = st.x + st.w - size;
+        if (corner === 'br' || corner === 'bl') s.y = st.y;
+        else s.y = st.y + st.h - size;
+      } else {
+        s.x = st.x + dx;
+        s.y = st.y + dy;
+      }
+      cropClamp(min);
+      cropPaint();
+      e.preventDefault();
+    });
+
+    function endDrag(e) {
+      if (!crop.drag) return;
+      crop.drag = null;
+      box.classList.remove('grabbing');
+      try { box.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    }
+    box.addEventListener('pointerup', endDrag);
+    box.addEventListener('pointercancel', endDrag);
+
+    /* Teclado: flechas mueven, +/- cambian el tamaño. */
+    document.addEventListener('keydown', function (e) {
+      if (!crop.open) return;
+      if (e.key === 'Escape') { cropClose(); return; }
+      var step = e.shiftKey ? 1 : 10;
+      var s = crop.sel, handled = true;
+      switch (e.key) {
+        case 'ArrowLeft': s.x -= step; break;
+        case 'ArrowRight': s.x += step; break;
+        case 'ArrowUp': s.y -= step; break;
+        case 'ArrowDown': s.y += step; break;
+        case '+': case '=': s.w += step; break;
+        case '-': case '_': s.w -= step; break;
+        case 'Enter': cropApply(); return;
+        default: handled = false;
+      }
+      if (!handled) return;
+      s.h = s.w;
+      cropClamp(cropMinView());
+      cropPaint();
+      e.preventDefault();
+    });
+  }
+
+  function cropLoadImage(file, slot, urlId, btnId, input) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        crop.file = file;
+        crop.img = img;
+        crop.slot = slot || 'large';
+        crop.urlId = urlId;
+        crop.btnId = btnId;
+        crop.input = input || null;
+        crop.open = true;
+
+        var modal = cropEl('cropModal');
+        modal.classList.add('open');
+        cropEl('cropSub').textContent = crop.slot === 'small'
+          ? 'Asset pequeño de la tarjeta: se muestra como icono cuadrado junto al juego.'
+          : 'Asset grande de la tarjeta: se muestra como miniatura cuadrada al pasar el cursor.';
+        cropEl('cropSize').value = crop.slot === 'small' ? '512' : '1024';
+
+        cropFitStage();
+        cropSelectWhole();
+        cropBindDrag();
+        if (input) input.value = '';
+      };
+      img.onerror = function () { toast('No se pudo leer la imagen', 'err'); };
+      img.src = reader.result;
+    };
+    reader.onerror = function () { toast('No se pudo leer el archivo', 'err'); };
+    reader.readAsDataURL(file);
+  }
+
+  function cropClose() {
+    crop.open = false;
+    crop.drag = null;
+    crop.img = null;
+    crop.file = null;
+    var modal = cropEl('cropModal');
+    if (modal) modal.classList.remove('open');
+  }
+
+  /* Dibuja el recorte elegido y lo sube por la ruta que ya existía,
+     de modo que el asset se registra igual que una imagen sin recortar. */
+  function cropApply() {
+    if (!crop.img || !crop.sel.w) { cropClose(); return; }
+    var scale = crop.view.scale;
+    var sx = crop.sel.x / scale;
+    var sy = crop.sel.y / scale;
+    var sw = crop.sel.w / scale;
+    var sh = crop.sel.h / scale;
+
+    /* Se recorta un margen de 2 px de origen para no incluir la línea
+       del borde del cuadro de selección. */
+    var pad = sw > 40 ? 2 : 0;
+
+    var out = parseInt(cropEl('cropSize').value, 10) || CROP_MIN;
+    var canvas = document.createElement('canvas');
+    canvas.width = out;
+    canvas.height = out;
+    var ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    /* Con imageSmoothing apagado el upscale por vecino más cercano del
+       servidor queda igual de nitido, pero el navegador hace un
+       reescalado suave y no se ve escalonado. */
+    ctx.drawImage(crop.img, sx, sy, sw - pad, sh - pad, 0, 0, out, out);
+
+    var btn = crop.btnId ? $(crop.btnId) : null;
+    var urlId = crop.urlId;
+    var oldText = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Subiendo…'; }
+
+    canvas.toBlob(function (blob) {
+      if (!blob) {
+        if (btn) { btn.disabled = false; btn.textContent = oldText; }
+        toast('El navegador no pudo generar la imagen recortada', 'err');
+        return;
+      }
+      var name = (crop.file && crop.file.name ? crop.file.name.replace(/\.[^.]+$/, '') : 'recorte') + '-recortada.png';
+      uploadBlob(blob, name, urlId, btnId, function () {
+        if (btn) { btn.disabled = false; btn.textContent = oldText; }
+        cropClose();
+      });
+    }, 'image/png');
+  }
+
+  function bindCropUi() {
+    cropEl('cropClose').addEventListener('click', cropClose);
+    cropEl('cropCancel').addEventListener('click', cropClose);
+    cropEl('cropApply').addEventListener('click', cropApply);
+    cropEl('cropWhole').addEventListener('click', cropSelectWhole);
+    cropEl('cropSize').addEventListener('change', cropPaint);
+    cropEl('cropModal').addEventListener('pointerdown', function (e) {
+      if (e.target === cropEl('cropModal')) cropClose();
+    });
+    window.addEventListener('resize', function () {
+      if (!crop.open) return;
+      var before = crop.view.w;
+      cropFitStage();
+      crop.sel.x = crop.sel.x * (crop.view.w / (before || crop.view.w));
+      crop.sel.y = crop.sel.y * (crop.view.h / (before || crop.view.h));
+      crop.sel.w = crop.sel.w * (crop.view.w / (before || crop.view.w));
+      cropClamp(cropMinView());
+      cropPaint();
+    });
+  }
+
   /* ---------------- Subida de imágenes locales ---------------- */
   /* Sube un archivo a /api/upload-image y autocompleta el campo URL
      de destino con la URL pública devuelta por el servidor. */
@@ -678,18 +1128,16 @@ body{
       toast('El archivo debe ser una imagen (jpg, jpeg, gif, webp, avif)', 'err');
       return;
     }
-    var btn = $(btnId);
-    btn.disabled = true;
-    var oldText = btn.textContent;
-    btn.textContent = 'Subiendo…';
+    cropLoadImage(file, urlId === 'inSmallUrl' ? 'small' : 'large', urlId, btnId, resetInput);
+  }
 
+  /* Sube un blob ya recortado: es el mismo flujo que un archivo normal,
+     así que el asset se registra en Discord igual. */
+  function uploadBlob(blob, filename, urlId, btnId, done) {
     var fd = new FormData();
-    fd.append('image', file);
-
+    fd.append('image', blob, filename);
     fetch('/api/upload-image', { method: 'POST', body: fd })
-      .then(function (r) {
-        return r.json().then(function (j) { return { ok: r.ok, j: j }; });
-      })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
         if (!res.ok || !res.j || !res.j.ok) {
           throw new Error((res.j && res.j.error) || 'Error al subir la imagen');
@@ -697,14 +1145,10 @@ body{
         $(urlId).value = res.j.url;
         renderPreview();
         saveForm();
-        toast('Imagen subida: ' + res.j.file, 'ok');
+        toast('Recorte aplicado: ' + res.j.file, 'ok');
       })
       .catch(function (err) { toast(err.message, 'err'); })
-      .then(function () {
-        btn.disabled = false;
-        btn.textContent = oldText;
-        if (resetInput) resetInput.value = '';
-      });
+      .then(function () { if (done) done(); });
   }
 
   function doImageUpload(fileId, urlId, btnId) {
@@ -1542,6 +1986,7 @@ function setConn(connected, error, verified) {
   /* ---------------- Eventos del DOM ---------------- */
   function bindEvents() {
     bindImageUploads();
+    bindCropUi();
     ['inAppId', 'inLargeUrl', 'inSmallUrl'].forEach(function (id) {
       var el = $(id);
       if (el) { el.addEventListener('input', refreshAssetHints); el.addEventListener('change', refreshAssetHints); }
