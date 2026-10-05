@@ -819,12 +819,12 @@ body{
       updateRotationUI();
       updateStateRotationUI();
       updateProfileRotationUI();
-      setConn(state.rpc.connected, state.rpc.error);
+      setConn(state.rpc.connected, state.rpc.error, state.rpc.verified);
     });
 
     socket.on('rpcStatus', function (s) {
       state.rpc = s;
-      setConn(s.connected, s.error);
+      setConn(s.connected, s.error, s.verified);
       renderRpc(s);
     });
 
@@ -871,15 +871,23 @@ body{
     });
   }
 
-  function setConn(connected, error) {
-    var pill = $('connPill');
-    pill.className = 'conn-pill';
-    pill.classList.toggle('conn-live', !!connected);
-    pill.classList.toggle('conn-error', !!error && !connected);
-    $('led').classList.toggle('on', !!connected);
-    $('connText').textContent = connected ? 'LIVE' : (error ? 'Sin conexión' : 'Desconectado');
-    pill.title = error || '';
-  }
+function setConn(connected, error, verified) {
+          var pill = $('connPill');
+          pill.className = 'conn-pill';
+          pill.classList.toggle('conn-live', !!connected);
+          pill.classList.toggle('conn-error', !!error && !connected);
+          $('led').classList.toggle('on', !!connected);
+          /* verified === false significa que el paquete se emitio pero no
+             llego bien formado (falta session_id): no se considera LIVE. */
+          var broken = connected && verified === false;
+          if (broken) {
+            $('connText').textContent = 'ERROR';
+            pill.title = 'El paquete de presencia esta incompleto (falta session_id). Discord no lo mostrara.';
+          } else {
+            $('connText').textContent = connected ? 'LIVE' : (error ? 'Sin conexi�n' : 'Desconectado');
+            pill.title = error || '';
+          }
+        }
 
   /* ---------------- Formulario de presencia (avanzado) ---------------- */
   function toDtLocal(ms) {

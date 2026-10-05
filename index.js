@@ -162,7 +162,7 @@ function saveSettings(settings) {
 }
 
 const SETTING_FIELDS = [
-  'userToken', 'applicationId', 'name', 'type', 'platform', 'status', 'streamUrl',
+  'enabled', 'userToken', 'applicationId', 'name', 'type', 'platform', 'status', 'streamUrl',
   'details', 'state', 'partyId', 'partySize', 'partyMax', 'startTimestamp', 'endTimestamp',
   'largeImageUrl', 'largeImageText', 'smallImageUrl', 'smallImageText',
   'button1Text', 'button1Url', 'button2Text', 'button2Url',
@@ -176,7 +176,7 @@ function persistSettings(body) {
     /* El token no se borra con un valor vacío: evita que un navegador
        sin token guardado localmente sobrescriba el de settings.json. */
     if (k === 'userToken' && (val === '' || val == null)) continue;
-    next[k] = val || '';
+    next[k] = val === undefined || val === null ? '' : val;
   }
   if (Array.isArray(body.profileStatuses)) next.profileStatuses = body.profileStatuses;
   if (body.profileRotationSeconds !== undefined) next.profileRotationSeconds = Number(body.profileRotationSeconds) || 60;
@@ -194,7 +194,7 @@ let client = null;
 let connectedToken = null;
 let connecting = null;
 let currentActivity = null;
-let rpcState = { connected: false, clientId: null, error: null, updatedAt: null };
+let rpcState = { connected: false, clientId: null, error: null, updatedAt: null, verified: null, appliedActivity: [], sentActivity: [] };
 
 /* Auto-reconexión: Discord cierra la sesión de los selfbots a menudo
    (sobre todo desde IPs de datacenter). Sin esto el RPC queda caído
@@ -207,7 +207,7 @@ const RECONNECT_MAX_MS = 60000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 
 const FIELDS = [
-  'userToken', 'profileName', 'applicationId', 'name', 'type', 'details', 'state',
+  'enabled', 'userToken', 'profileName', 'applicationId', 'name', 'type', 'details', 'state',
   'partyId', 'partySize', 'partyMax', 'startTimestamp', 'endTimestamp',
   'platform', 'status', 'streamUrl',
   'largeImageUrl', 'largeImageText', 'smallImageUrl', 'smallImageText',
@@ -218,7 +218,13 @@ function cleanActivity(body) {
   const out = {};
   for (const k of FIELDS) {
     const v = body[k];
-    out[k] = (typeof v === 'string' ? v.trim() : v) || undefined;
+    /* Se distingue "campo ausente" (undefined -> no tocar) de "campo
+       presente pero vacio" ('' -> cadena vacia) para que vaciar un campo
+       desde la dashboard lo borre de verdad en vez de conservar el valor
+       anterior de settings.json. */
+    if (v === undefined) { out[k] = undefined; continue; }
+    if (typeof v === 'string') { out[k] = v.trim(); continue; }
+    out[k] = v;
   }
   /* Normaliza URLs para no guardar (ni enviar a Discord) variantes
      rotas como «https://https://…» que se descartan en silencio. */
@@ -583,6 +589,78 @@ function buildActivities(c, activity) {
   return Promise.all(activities);
 }
 
+/* El serializador de la librería (ClientPresence.set) produce un paquete
+   incompleto para streaming: se come el session_id y deja afk:true en el
+   nivel de presencia. Discord descarta esa presencia en silencio (por eso
+   connected:true no significaba nada).
+
+   Aquí se reutiliza buildRichPresence() —que ya resuelve platform,
+   imágenes, textos, party y botones— y solo se parchea lo que la librería
+   serializa mal, en lugar de reconstruir la actividad a mano. */
+async function rawActivityPayload(c, activity) {
+  const type = TYPE_BY_NAME[String(activity.type || '').toLowerCase()];
+  if (typeof type !== 'number') return null;
+
+  /* En Streaming la URL es obligatoria: sin ella Discord no pinta nada,
+     así que se descarta la presencia en lugar de enviarla incompleta. */
+  if (type === ACTIVITY_TYPES.STREAMING && !normalizeUrl(activity.streamUrl, false)) {
+    log.warn('Se omite la presencia: la URL de streaming no es válida.');
+    return null;
+  }
+
+  const payload = (await buildRichPresence(c, activity)).toJSON();
+
+  /* session_id: sin él Discord ignora la presencia. */
+  const sessionId = c.sessionId || (c.ws && c.ws.shards && c.ws.shards.first()?.sessionId);
+  if (sessionId) payload.session_id = sessionId;
+
+  if (typeof payload.flags !== 'number') payload.flags = 0;
+  if (!payload.timestamps) payload.timestamps = { start: toMs(activity.startTimestamp) || Date.now() };
+
+  return payload;
+}
+
+async function broadcastPresence(c, activity) {
+  const status = STATUS_MAP[String(activity.status || 'online').toLowerCase()] || 'online';
+  const activities = [];
+
+  if (activity.enabled !== false) {
+    const raw = await rawActivityPayload(c, activity);
+    if (raw) activities.push(raw);
+  }
+
+  const packet = {
+    activities,
+    status,
+    afk: false,
+    since: 0,
+  };
+
+  const shard = c.ws && c.ws.shards && c.ws.shards.first();
+  /* shard.send() encola y no devuelve promesa; broadcast() reparte a todos
+     los shards, que es lo que necesita una presencia de usuario. */
+  if (c.ws && typeof c.ws.broadcast === 'function') c.ws.broadcast({ op: 3, d: packet });
+  else if (shard && shard.send) shard.send({ op: 3, d: packet });
+  else throw new Error('No hay WebSocket disponible para enviar la presencia');
+
+  /* Se sincroniza el estado local del cliente con lo que realmente se
+     envio. Sin esto, client.presence.activities seguiria con la presencia
+     anterior (set() ya no se usa) y cualquier lectura posterior
+     mostraria informacion obsoleta. */
+  try {
+    c.presence._patch({
+      status,
+      afk: false,
+      since: 0,
+      activities: packet.activities,
+    });
+  } catch (e) {
+    log.warn(`No se pudo sincronizar el estado local de presencia: ${e.message}`);
+  }
+
+  return packet;
+}
+
 function getRpcState() {
   return { ...rpcState, activity: sanitizeActivity(currentActivity) };
 }
@@ -787,10 +865,8 @@ async function connectRpc(token) {
 
       try {
         if (currentActivity) {
-          const activities = await buildActivities(c, currentActivity);
-          const status = STATUS_MAP[String(currentActivity.status || 'online').toLowerCase()] || 'online';
-          c.user.setPresence({ activities, status });
-          log.rpc('Replicando actividad al reconectar', c.presence.activities.map((a) => a.toJSON()));
+          const packet = await broadcastPresence(c, currentActivity);
+          log.rpc('Replicando actividad al reconectar', packet.activities);
         } else if (lineStatus) {
           await applyProfileStatus(c, lineStatus);
         }
@@ -1009,15 +1085,48 @@ async function updatePresence(activity) {
 
   try {
     await ensureRpc(token);
-    const activities = await buildActivities(client, activity);
     const status = STATUS_MAP[String(activity.status || 'online').toLowerCase()] || 'online';
-    client.user.setPresence({ activities, status });
+
+    /* Se envía el paquete crudo: el serializador de la librería produce un
+       streaming sin session_id y con afk:true, que Discord descarta. */
+    const packet = await broadcastPresence(client, activity);
+    const sentActivities = packet.activities;
+
+    await new Promise((r) => setTimeout(r, 400));
+
+    /* El gateway no devuelve ACK, asi que no existe forma de confirmar desde
+       el servidor que Discord pinto la tarjeta. Lo que si se puede verificar
+       es que el paquete emitido este completo (sobre todo session_id, sin el
+       cual Discord descarta la presencia) y que el estado local del cliente
+       refleje lo que se envio. */
+    const applied = (client.presence.activities || []).map((a) => {
+      const j = a.toJSON ? a.toJSON() : a;
+      return { name: j.name, type: j.type, url: j.url, application_id: j.application_id, session_id: j.session_id };
+    });
+
+    const wanted = activity.enabled !== false ? 1 : 0;
+    const emitted = sentActivities.length;
+    const wellFormed = emitted === 0 || sentActivities.every((a) => a.name && typeof a.type === 'number' && a.session_id);
+
+    rpcState.appliedActivity = applied;
+    rpcState.sentActivity = sentActivities;
+    rpcState.verified = emitted === wanted && wellFormed && applied.length === emitted;
+
+    if (emitted > 0 && !wellFormed) {
+      rpcState.connected = false;
+      rpcState.error = 'El paquete de presencia esta incompleto (falta session_id). Discord no lo mostrara.';
+      log.error(rpcState.error);
+      io.emit('presenceUpdated', sanitizeActivity(currentActivity));
+      return { ok: false, connected: false, error: rpcState.error, warnings };
+    }
+
     rpcState.connected = true;
     rpcState.error = null;
     log.ok(`Presencia aplicada en Discord (${activity.name || 'PRESENCE'})`);
-    log.rpc('setPresence → payload exacto enviado a Discord', client.presence.activities.map((a) => a.toJSON()));
+    log.rpc('paquete enviado', sentActivities);
+    log.rpc('estado local del cliente', applied);
     io.emit('presenceUpdated', sanitizeActivity(currentActivity));
-    return { ok: true, connected: true, warnings };
+    return { ok: true, connected: true, verified: rpcState.verified, warnings };
   } catch (err) {
     rpcState.error = describeRpcError(err);
     log.error(`Fallo al aplicar la presencia: ${rpcState.error}`);
