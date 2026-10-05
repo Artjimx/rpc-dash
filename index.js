@@ -40,6 +40,7 @@ import {
   deleteApplicationAsset,
   IDEAL_ASSET_BYTES,
 } from './discordAssets.js';
+import { fetchOwnProfile, clearProfileCache } from './discordProfile.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.SERVER_PORT) || Number(process.env.PORT) || 3000;
@@ -53,9 +54,21 @@ const io = new Server(httpServer, {
   cors: { origin: true, methods: ['GET', 'POST'] },
 });
 
+/* express.static impone su propia Cache-Control, así que el ajuste se
+   hace desde setHeaders (si no, manda el "max-age=0" de static y el
+   navegador se queda con una versión antigua del cliente). */
+const ALWAYS_FRESH = new Set(['/sw.js', '/manifest.webmanifest']);
+
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    const publicUrl = `/${path.relative(path.join(__dirname, 'public'), filePath).split(path.sep).join('/')}`;
+    if (ALWAYS_FRESH.has(publicUrl)) {
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    }
+  },
+}));
 
 /* ============================================================
    Subida de imágenes locales (multer → public/uploads)
@@ -324,10 +337,29 @@ function describeTokenError(err) {
   return 'No se pudo conectar con Discord: ' + m;
 }
 
+/* Discord manda el tiempo de espera en varias formas: retry_after en
+   segundos, Retry-After en cabeceras o un _retry_after del gateway. */
+function retryAfterMs(err) {
+  const direct = Number(err && (err.retry_after_ms ?? err.retryAfterMs));
+  if (Number.isFinite(direct) && direct > 0) return Math.min(MAX_RATE_WAIT_MS, direct);
+
+  const secs = Number(err && (err.retry_after ?? err.retryAfter));
+  if (Number.isFinite(secs) && secs > 0) return Math.min(MAX_RATE_WAIT_MS, secs * 1000);
+
+  const m = /retry.after[\s:=]+([0-9.]+)/i.exec(String((err && err.message) || err));
+  if (m) return Math.min(MAX_RATE_WAIT_MS, Math.ceil(Number(m[1]) * 1000));
+  return 0;
+}
+
 function describeRpcError(err) {
   const m = String((err && err.message) || err || 'Error desconocido');
   if (/invalid token|unauthorized|4004|401/i.test(m)) return describeTokenError(err);
-  if (/rate|too many|429/i.test(m)) return describeTokenError(err);
+  if (/rate|too many|429/i.test(m)) {
+    /* Se registra el 429 para que el siguiente envío espere lo que
+       Discord pidió, en lugar de reintentar y quemarlo más rápido. */
+    noteRateLimit(retryAfterMs(err));
+    return 'Discord está limitando la presencia (429). Se reintentará automáticamente en unos segundos.';
+  }
   if (/connection closed|refused|enoent|socket hang up|end of file|ECONNRESET|gateway|websocket|disconnected/i.test(m)) {
     return 'No se pudo mantener la conexión con Discord (red o sesión cerrada). Reintenta o revisa tu token.';
   }
@@ -419,17 +451,121 @@ function toMs(v) {
    - Asset ID (17-20 dígitos)  -> se deja tal cual
    - mp: / youtube: / spotify: / twitch:  -> proxy directo
    - external/…                -> media proxy (mp:external/…)
-   - URL https://…
-       · cdn/media.discordapp.net  -> se convierte a mp:
-       · cualquier otro host       -> se registra con
-         RichPresence.getExternal (oficial, cacheado) y, si eso
-         falla o no hay App ID, cae al proxy mp:.
+   - URL https://…  -> se sube sola a los Art Assets de la
+     aplicación (incluidas las de cdn/media.discordapp.net) y se
+     devuelve su nombre. Si eso falla se intenta el registro oficial
+     con RichPresence.getExternal (cacheado) y, en último caso, el
+     proxy mp:.
    Devuelve null si el valor es inválido (se conserva la imagen
    anterior en lugar de lanzar el error «INVALID_URL» que ponía
    la imagen en «?»).
    ============================================================ */
 
 const EXTERNAL_CACHE = new Map();
+
+/* ------------------------------------------------------------
+   RATE LIMIT (protección contra 429)
+
+   Discord limita la presencia por comandos y por ventana de tiempo.
+   Enviar cada pulsación del formulario, cada cambio de estado y cada
+   paso de rotación por separado dispara 429 con facilidad; cuando pasa,
+   el gateway empieza a descartar la presencia y el dashboard parece
+   roto aunque todo esté bien.
+
+   Aquí NO se promete invisibilidad: solo se agrupan y espacian las
+   actualizaciones para no gastar el presupuesto de rate limit, igual
+   que haría un cliente oficial.
+
+   - COALESCE_MS: varias peticiones seguidas se funden en una sola.
+   - MIN_GAP_MS: separación mínima entre envíos consecutivos.
+   - Un 429 real (retry_after) pasa a ser la espera máxima.
+   ------------------------------------------------------------ */
+
+const COALESCE_MS = 1200;
+const MIN_GAP_MS = 2500;
+const MAX_RATE_WAIT_MS = 60000;
+
+let pendingUpdate = null;
+let pendingTimer = null;
+let queuedUpdate = null;
+let lastSentAt = 0;
+let rateLimitUntil = 0;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Registra un 429 y devuelve lo que hay que esperar, si algo. */
+function noteRateLimit(retryAfterMs) {
+  const wait = Math.min(
+    MAX_RATE_WAIT_MS,
+    Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : COALESCE_MS,
+  );
+  rateLimitUntil = Date.now() + wait;
+  log.warn(`Discord limitó la presencia (429). Se espera ${Math.ceil(wait / 1000)} s antes de reintentar.`);
+  return wait;
+}
+
+/**
+ * Espera lo necesario antes de enviar: respeta el 429 recibido, el
+ * hueco mínimo entre envíos y, si hay algo pendiente aún sin enviar,
+ * lo fusiona para que solo salga la última versión.
+ */
+async function waitForRateLimit() {
+  let waited = 0;
+  const now = Date.now();
+
+  if (rateLimitUntil > now) {
+    const wait = rateLimitUntil - now;
+    log.info(`En espera del rate limit de Discord (${Math.ceil(wait / 1000)} s).`);
+    await sleep(wait);
+    waited += wait;
+  }
+
+  const since = Date.now() - lastSentAt;
+  if (lastSentAt && since < MIN_GAP_MS) {
+    await sleep(MIN_GAP_MS - since);
+    waited += MIN_GAP_MS - since;
+  }
+
+  /* Durante la espera puede haber llegado una versión más nueva: si es
+     distinta, la que estaba en vuelo se descarta y se manda esta. */
+  if (pendingUpdate && pendingUpdate !== queuedUpdate) {
+    pendingUpdate = null;
+    if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
+  }
+  return waited;
+}
+
+/**
+ * Fusiona varias actualizaciones en un solo envío al gateway.
+ *
+ * Se guarda siempre la más reciente y se espera un instante a que el
+ * usuario deje de pulsar; solo entonces se envía. Si llega otra versión
+ * durante la espera, sustituye a la anterior: el usuario acaba viendo
+ * lo último que escribió, nunca una intermediate.
+ */
+function scheduleUpdate(latest, reason) {
+  pendingUpdate = latest;
+  if (!pendingTimer) {
+    pendingTimer = setTimeout(async () => {
+      pendingTimer = null;
+      const next = pendingUpdate;
+      pendingUpdate = null;
+      if (!next || next === queuedUpdate) return;
+      queuedUpdate = next;
+      try {
+        await updatePresence(next, { coalesced: true, reason });
+      } catch (e) {
+        log.error(`No se pudo enviar la presencia agrupada (${reason || 'sin motivo'}): ${e.message}`);
+      }
+    }, COALESCE_MS);
+  }
+  return { coalesced: true, delayMs: COALESCE_MS };
+}
+
+/** Marca el instante del último envío real. */
+function markSent() {
+  lastSentAt = Date.now();
+}
 
 function isValidAppId(id) {
   return /^[0-9]{17,20}$/.test(String(id || '').trim());
@@ -524,18 +660,31 @@ async function registerImageAsset(client, value, appId, slot) {
       log.ok(`Imagen ampliada automáticamente de ${asset.scaled.from} a ${asset.scaled.to} para cumplir el mínimo de Discord`);
     }
 
-    registry[key] = { name: asset.name, id: asset.id, at: new Date().toISOString() };
+    registry[key] = { name: asset.name, id: asset.id, slot, appId: String(appId), at: new Date().toISOString() };
     saveAssetRegistry(registry);
 
-    /* Limpieza best-effort del asset que este slot usaba antes. */
-    const previous = Object.values(registry).find((a) => a && a.name && a.name !== asset.name);
-    if (previous && previous.id) {
-      deleteApplicationAsset({ token, appId, assetId: previous.id });
-      for (const k of Object.keys(registry)) {
-        if (registry[k] && registry[k].id === previous.id) delete registry[k];
+    /* Limpieza best-effort del asset que este MISMO slot y app usaba
+       antes. Solo se toca lo que pertenece a este par (slot, appId):
+       los assets de otros slots o de otra aplicación siguen en uso. */
+    const sameSlot = Object.entries(registry).filter(([k, a]) => {
+      if (k === key || !a || !a.id || a.name === asset.name) return false;
+      /* Las entradas anteriores al cambio no guardaban slot/appId, así
+         que se caen por nombre: solo viven en este mismo slot. */
+      if (a.slot || a.appId) return a.slot === slot && a.appId === String(appId);
+      return buildAssetName(slot, k) === a.name || /^rpc_(lg|sm)_/.test(a.name);
+    });
+    for (const [k, stale] of sameSlot) {
+      const removed = await deleteApplicationAsset({ token, appId, assetId: stale.id });
+      if (removed) {
+        log.ok(`Asset anterior "${stale.name}" eliminado (${slot})`);
+        delete registry[k];
+      } else {
+        /* Si el borrado falla se deja la entrada: el Developer Portal
+           mostrará un asset huérfano, pero la presencia sigue bien. */
+        log.warn(`No se pudo borrar el asset anterior "${stale.name}" (${slot}); queda huérfano en el portal`);
       }
-      saveAssetRegistry(registry);
     }
+    if (sameSlot.length) saveAssetRegistry(registry);
 
     log.ok(`Asset "${asset.name}" subido a la aplicacion ${appId} (${slot}, ${Math.round(image.buffer.length / 1024)} KB, ${Date.now() - started} ms)`);
     assetSync = { running: false, at: Date.now(), lastError: null,
@@ -571,9 +720,6 @@ async function resolveRichImage(client, value, appId, slot = 'large') {
     if (/^http:\/\//i.test(v)) {
       log.warn(`Imagen externa http:// no soportada, asset omitido: ${v.slice(0, 80)}`);
       return null;
-    }
-    if (/cdn\.discordapp\.com|media\.discordapp\.net/i.test(v)) {
-      return 'mp:' + v.replace(/^https?:\/\//i, (m) => m.replace('://', '/'));
     }
     if (isValidAppId(appId)) {
       /* Camino principal: si hay Application ID, la imagen se sube sola a
@@ -1065,6 +1211,11 @@ async function connectRpc(token) {
       connectedToken = tok;
       try { c.presence.userId = c.user.id; } catch (e) { /* noop */ }
       rpcState.clientId = (c.user && c.user.id) || null;
+      /* El perfil se relee al conectar: si cambió el token, los datos
+         cacheados pueden ser de otra cuenta. */
+      clearProfileCache();
+      profileState = { data: null, error: null, at: null };
+      refreshProfile(tok).then(() => io.emit('profile', { profile: profileState.data, error: profileState.error }));
     } catch (err) {
       const msg = describeTokenError(err);
       rpcState.connected = false;
@@ -1188,7 +1339,25 @@ async function clearActivity() {
   return { ok: true };
 }
 
-async function updatePresence(activity) {
+/**
+ * Punto de entrada de toda actualización de presencia.
+ *
+ * Si viene del usuario guardando el formulario, se fusiona con el
+ * rate limit (scheduleUpdate) en vez de enviarse al instante: pulsar
+ * "Aplicar" varias veces seguidas produce una sola presencia.
+ *
+ * Las actualizaciones internas (rotaciones, cambios de estado) ya
+ * llevan {coalesced:true} y se envían directamente.
+ */
+async function updatePresence(activity, opts = {}) {
+  if (!opts.coalesced && !opts.internal) {
+    const queued = scheduleUpdate(activity, opts.reason);
+    return { ok: true, coalesced: true, ...queued };
+  }
+  return sendPresence(activity, opts);
+}
+
+async function sendPresence(activity, opts = {}) {
   /* Sin startTimestamp, Discord cuenta desde el momento de aplicar:
      se guarda ese instante para que la tarjeta lo muestre igual. */
   if (!activity.startTimestamp) activity.startTimestamp = Date.now();
@@ -1222,7 +1391,7 @@ async function updatePresence(activity) {
     const packet = await broadcastPresence(client, activity);
     const sentActivities = packet.activities;
 
-    await new Promise((r) => setTimeout(r, 400));
+    await waitForRateLimit();
 
     /* El gateway no devuelve ACK, asi que no existe forma de confirmar desde
        el servidor que Discord pinto la tarjeta. Lo que si se puede verificar
@@ -1250,6 +1419,7 @@ async function updatePresence(activity) {
       return { ok: false, connected: false, error: rpcState.error, warnings };
     }
 
+    markSent();
     rpcState.connected = true;
     rpcState.error = null;
     log.ok(`Presencia aplicada en Discord (${activity.name || 'PRESENCE'})`);
@@ -1302,7 +1472,7 @@ async function setCustomStatus(data) {
   if (into === 'details') activity.details = String(text).slice(0, 128);
   else activity.state = String(text).slice(0, 128);
 
-  return updatePresence(cleanActivity(activity));
+  return updatePresence(cleanActivity(activity), { coalesced: true });
 }
 
 /* ============================================================
@@ -1340,7 +1510,7 @@ function rotationTick() {
   if (profile.startTimestamp === undefined) profile.startTimestamp = (currentActivity && currentActivity.startTimestamp) || '';
   if (profile.endTimestamp === undefined) profile.endTimestamp = (currentActivity && currentActivity.endTimestamp) || '';
 
-  updatePresence(profile)
+  updatePresence(profile, { coalesced: true })
     .then(() => io.emit('rotationState', getRotationState()))
     .catch(() => io.emit('rotationState', getRotationState()))
     .finally(() => { rotationBusy = false; });
@@ -1436,7 +1606,7 @@ function stateRotationTick() {
   if (stateInto === 'details') base.details = String(statePhrases[stateIndex]).slice(0, 128);
   else base.state = String(statePhrases[stateIndex]).slice(0, 128);
 
-  updatePresence(base)
+  updatePresence(base, { coalesced: true })
     .then(() => io.emit('stateRotationState', getStateRotationState()))
     .catch(() => io.emit('stateRotationState', getStateRotationState()))
     .finally(() => { stateBusy = false; });
@@ -1549,14 +1719,73 @@ app.get('/api/status', (req, res) => {
     rotation: getRotationState(),
     stateRotation: getStateRotationState(),
     profileRotation: getProfileRotationState(),
+    profile: getCachedProfile(),
   });
+});
+
+/* ============================================================
+   Perfil real de la cuenta: alimenta el preview pixel-perfect del
+   dashboard. NUNCA devuelve el token: solo campos de perfil.
+   ============================================================ */
+let profileState = { data: null, error: null, at: null };
+
+function getCachedProfile() {
+  return profileState.data || null;
+}
+
+/* El custom status se guarda ya formateado (con emoji), así que se
+   reutiliza para que el preview muestre lo mismo que Discord. */
+function currentCustomStatusText() {
+  const custom = loadSettings().customStatus || null;
+  if (!custom) return '';
+  const emoji = custom.emojiId
+    ? `<a:${custom.emojiName || 'emoji'}:${custom.emojiId}>`
+    : (custom.emojiName || '');
+  return `${emoji}${emoji && custom.text ? ' ' : ''}${custom.text || ''}`.trim();
+}
+
+async function refreshProfile(token) {
+  const t = String(token || '').trim();
+  if (!t) {
+    profileState = { data: null, error: 'Falta el USER_TOKEN para leer el perfil.', at: Date.now() };
+    return profileState;
+  }
+  try {
+    const data = await fetchOwnProfile(t, { customStatusText: currentCustomStatusText() });
+    profileState = { data, error: null, at: Date.now() };
+  } catch (err) {
+    log.error(`Perfil de la cuenta: ${err.message}`);
+    profileState = { data: null, error: err.message, at: Date.now() };
+  }
+  return profileState;
+}
+
+app.get('/api/profile', async (req, res) => {
+  try {
+    const token = resolveToken(null, loadSettings()) || connectedToken;
+    /* Con caché se responde al instante; el token se refresca solo cada
+       5 minutos o cuando no hay nada cacheado todavía. */
+    const fresh = profileState.data && Date.now() - profileState.at < 300000;
+    if (!fresh) await refreshProfile(token);
+    res.json({
+      ok: !!profileState.data,
+      profile: profileState.data,
+      error: profileState.error,
+      at: profileState.at,
+    });
+  } catch (err) {
+    log.error(`GET /api/profile: ${err.message}`);
+    res.status(500).json({ ok: false, profile: null, error: err.message });
+  }
 });
 
 app.post('/api/update', async (req, res) => {
   try {
     const activity = cleanActivity(req.body || {});
     persistSettings(activity);
-    const result = await updatePresence(activity);
+    /* Coalescido a propósito: si el usuario pulsa "Aplicar" varias veces,
+       solo sale la última presencia, sin gastar el rate limit. */
+    const result = await updatePresence(activity, { reason: 'api/update' });
     res.json({ ...result, state: getRpcState() });
   } catch (err) {
     log.error(`POST /api/update: ${err.message}`);
@@ -1672,7 +1901,7 @@ io.on('connection', (socket) => {
     try {
       const activity = cleanActivity(data || {});
       persistSettings(activity);
-      const result = await updatePresence(activity);
+      const result = await updatePresence(activity, { reason: 'socket/updatePresence' });
       if (typeof ack === 'function') ack({ ...result, state: getRpcState() });
     } catch (err) {
       log.error(`Socket updatePresence: ${err.message}`);

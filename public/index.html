@@ -7,6 +7,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#090d16">
+<meta name="description" content="Dashboard de Rich Presence de Discord: presencia, rotaciones y registro automatico de imagenes.">
+<meta name="color-scheme" content="dark">
+<!-- iOS no lee el manifest: necesita sus propias etiquetas para el modo standalone -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PRESENCE·OS">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" type="image/png" href="/icon-192.png">
 <style>
 /* ============================================================
    PRESENCE·OS v2 — Glassmorphism
@@ -14,7 +24,7 @@
 :root{
   --accent:#00ffff;
   --accent-2:#bb86fc;
-  --bg:#0a0a12;
+  --bg:#090d16;
   --text:#f4f4f8;
   --text-2:#a6a6bd;
   --text-3:#6b6b82;
@@ -30,9 +40,9 @@ body{
   color:var(--text);
   min-height:100vh;
   background:
-    radial-gradient(1100px 700px at 12% -8%, rgba(0,255,255,.10), transparent 60%),
-    radial-gradient(900px 650px at 96% 2%, rgba(187,134,252,.10), transparent 60%),
-    linear-gradient(160deg,#0b0b14,#08080f 60%,#0a0a13);
+    radial-gradient(1100px 700px at 12% -8%, rgba(0,255,255,.12), transparent 60%),
+    radial-gradient(900px 650px at 96% 2%, rgba(187,134,252,.13), transparent 60%),
+    linear-gradient(160deg,#090d16,#070a12 60%,#090d18);
   overflow-x:hidden;
   font-size:14px;line-height:1.5;
 }
@@ -46,8 +56,8 @@ body{
 .bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
 .blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.38;animation:drift 20s ease-in-out infinite;pointer-events:none}
 .blob-1{width:420px;height:420px;background:rgba(0,255,255,.35);top:-140px;left:-100px}
-.blob-2{width:380px;height:380px;background:rgba(187,134,252,.35);top:28%;right:-120px;animation-delay:-7s}
-.blob-3{width:300px;height:300px;background:rgba(0,150,255,.28);bottom:-110px;left:42%;animation-delay:-13s}
+.blob-2{width:380px;height:380px;background:rgba(187,134,252,.38);top:28%;right:-120px;animation-delay:-7s}
+.blob-3{width:300px;height:300px;background:rgba(0,150,255,.30);bottom:-110px;left:42%;animation-delay:-13s}
 @keyframes drift{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(45px,-35px) scale(1.12)}}
 .grid-overlay{
   position:absolute;inset:0;pointer-events:none;
@@ -68,6 +78,11 @@ body{
   border:1px solid var(--stroke);
   border-radius:22px;
   box-shadow:0 24px 60px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.08);
+}
+/* Halo cian/violeta: el "neon" del tema, sin ensuciar el panel */
+.glass::before{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(140deg,rgba(0,255,255,.10),transparent 38%,transparent 62%,rgba(187,134,252,.10));
 }
 
 /* ---------- Header ---------- */
@@ -108,53 +123,158 @@ body{
 .led{width:8px;height:8px;border-radius:50%;flex:none;background:#3c3c4c;transition:background .3s}
 .led.on{background:var(--accent);box-shadow:0 0 8px var(--accent),0 0 18px rgba(0,255,255,.6);animation:pulse 1.6s ease-in-out infinite}
 
-/* ---------- Layout ---------- */
+/* ---------- Layout ----------
+   Columna izquierda = formulario, columna derecha = preview del perfil
+   que se queda pegado al hacer scroll (como pide el diseño). */
 .layout{
   position:relative;z-index:1;
   max-width:1380px;margin:22px auto 60px;padding:0 26px;
-  display:grid;grid-template-columns:1fr 1fr;gap:22px;
+  display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:22px;align-items:start;
 }
 .panel{padding:24px;animation:fadeUp .55s ease both}
 .panel:nth-child(2){animation-delay:.1s}
 .panel.wide{grid-column:1/-1;animation-delay:.2s}
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 
+/* La columna del preview: sticky en escritorio, normal en móvil */
+.preview-col{position:sticky;top:22px;display:flex;flex-direction:column;gap:22px;min-width:0}
+@media (max-width:1080px){
+  .layout{grid-template-columns:minmax(0,1fr)}
+  .preview-col{position:static}
+}
+
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
 .kicker{font-family:'Space Grotesk';font-size:11px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--text-3)}
 .live-tag{display:flex;align-items:center;gap:8px;font-family:'Space Grotesk';font-size:12px;font-weight:700;letter-spacing:.22em;color:var(--accent);text-shadow:0 0 14px rgba(0,255,255,.5)}
 .tag{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-2);background:rgba(255,255,255,.05);border:1px solid var(--stroke);padding:5px 10px;border-radius:999px}
 
-/* ---------- Previsualización Discord ---------- */
-.dc-frame{display:flex;justify-content:center;padding:6px 0 18px}
-.dc-card{
-  width:min(100%,430px);display:flex;gap:14px;padding:14px;
-  background:rgba(13,16,24,.72);
-  border:1px solid rgba(255,255,255,.10);
-  border-radius:14px;
-  box-shadow:0 20px 50px rgba(0,0,0,.55);
+/* ============================================================
+   Previsualización pixel-perfect de la tarjeta de perfil de Discord
+   Los colores son los reales de Discord (#2b2d31 superficie,
+   #1e1f22 banner, #dbdee1 texto) para que se vea igual que en el
+   cliente, envuelto en el panel de cristal del dashboard.
+   ============================================================ */
+.dfx{
+  --dc-surface:#2b2d31; --dc-raised:#1e1f22; --dc-text:#dbdee1;
+  --dc-dim:#949ba4; --dc-hover:#111214; --dc-link:#00a8fc;
+  --dc-radius:8px;
+  background:var(--dc-surface);border-radius:var(--dc-radius);
+  overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,.5);
+  font-family:'Inter',system-ui,sans-serif;
+}
+.dfx-banner{
+  height:118px;background:var(--dc-raised);position:relative;
+}
+.dfx-banner.has-img{background-size:cover;background-position:center}
+.dfx-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.15),transparent 45%)}
+.dfx-top{position:relative;padding:0 16px}
+/* El avatar solapa el banner, como en Discord */
+.dfx-avatar-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:-46px}
+.dfx-avatar-box{position:relative;width:92px;height:92px;flex:none}
+.dfx-avatar{
+  width:80px;height:80px;border-radius:50%;object-fit:cover;
+  border:6px solid var(--dc-surface);background:#1e1f22;display:block;
+}
+.dfx-avatar-fallback{
+  position:absolute;left:6px;top:6px;width:80px;height:80px;border-radius:50%;
+  display:none;place-items:center;font:700 30px 'Space Grotesk';color:rgba(255,255,255,.85);
+}
+.dfx-avatar-box.no-img .dfx-avatar{display:none}
+.dfx-avatar-box.no-img .dfx-avatar-fallback{display:grid}
+.dfx-deco{position:absolute;inset:0;width:92px;height:92px;pointer-events:none}
+/* Badge de estado en la esquina inferior derecha del avatar */
+.dfx-presence{
+  position:absolute;right:0;bottom:0;width:26px;height:26px;border-radius:50%;
+  border:6px solid var(--dc-surface);background:#80848e;
+}
+.dfx-presence.online{background:#23a55a}
+.dfx-presence.idle{background:#f0b232}
+.dfx-presence.dnd{background:#f23f43}
+/* Invisible: círculo hueco, igual que Discord */
+.dfx-presence.invisible{background:transparent;box-shadow:inset 0 0 0 3px #80848e}
+.dfx-names{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:8px}
+.dfx-name{font-size:20px;font-weight:700;color:var(--dc-text);line-height:1.2}
+.dfx-name.has-accent{color:var(--accent-color)}
+.dfx-tag{font-size:14px;font-weight:500;color:var(--dc-dim)}
+.dfx-badges{display:flex;gap:5px;align-items:center;margin-top:6px;min-height:16px;flex-wrap:wrap}
+.dfx-badge{width:18px;height:18px;flex:none;position:relative}
+.dfx-badge svg{width:100%;height:100%;display:block}
+.dfx-badge:hover::after{
+  content:attr(data-name);position:absolute;top:130%;left:50%;transform:translateX(-50%);
+  background:#111214;color:var(--dc-text);font:500 11px/1 Inter;letter-spacing:0;
+  padding:6px 9px;border-radius:6px;white-space:nowrap;z-index:5;pointer-events:none;
+}
+/* Custom status (burbuja del perfil) */
+.dfx-custom{
+  margin-top:10px;font-size:14px;color:var(--dc-text);display:flex;gap:8px;align-items:baseline;
+}
+.dfx-custom .cs-text{white-space:pre-wrap;word-break:break-word}
+.dfx-body{padding:14px 16px 16px}
+.dfx-custom.muted{color:var(--dc-dim)}
+
+/* ---- Tarjeta de actividad (Rich Presence) ---- */
+.dfx-card{
+  margin-top:14px;background:var(--dc-raised);border-radius:var(--dc-radius);
+  padding:14px;display:flex;gap:14px;flex-wrap:wrap;position:relative;
   animation:cardGlow 4.5s ease-in-out infinite;
 }
-@keyframes cardGlow{0%,100%{box-shadow:0 20px 50px rgba(0,0,0,.55)}50%{box-shadow:0 20px 50px rgba(0,0,0,.55),0 0 36px rgba(0,255,255,.12)}}
-.dc-art{position:relative;width:96px;height:96px;flex:none}
-.dc-large-wrap{width:100%;height:100%;border-radius:10px;overflow:hidden;background:#1a2130;position:relative}
-.dc-large{width:100%;height:100%;object-fit:cover;display:none}
-.dc-ph{position:absolute;inset:0;display:grid;place-items:center;font-family:'Space Grotesk';font-size:34px;font-weight:700;color:#3d4a63;background:radial-gradient(circle at 30% 25%,rgba(0,255,255,.10),transparent 60%),linear-gradient(145deg,#1a2130,#141925)}
-.dc-large-wrap.has-img .dc-ph{display:none}
-.dc-large-wrap.has-img .dc-large{display:block}
-.dc-small-wrap{position:absolute;right:-6px;bottom:-6px;width:36px;height:36px;border-radius:50%;background:rgba(13,16,24,.9);padding:3px}
-.dc-small{width:100%;height:100%;border-radius:50%;object-fit:cover;background:#1a2130;display:none;border:1px solid #262d3d}
-.dc-small-wrap.has-img .dc-small{display:block}
-.dc-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.dc-app{font-family:'Space Grotesk';font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
-.dc-details{font-size:14px;font-weight:600;color:#f2f3f5;line-height:1.3}
-.dc-state{font-size:12px;color:#aab0bd;line-height:1.3}
-.dc-elapsed{display:flex;align-items:center;gap:5px;font-size:11px;color:#8a93a3;margin-top:3px;font-variant-numeric:tabular-nums}
-.dc-party{font-size:11px;color:#8a93a3;margin-top:2px}
-.dc-stream{font-size:11px;color:var(--accent-2);margin-top:2px}
-.dc-empty{font-size:12px;color:#8a93a3;font-style:italic}
-.dc-buttons{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
-.dc-btn{font-size:11px;font-weight:600;text-decoration:none;color:#e3e5e8;background:#232a3b;border:1px solid #2e374c;border-radius:8px;padding:6px 14px;transition:background .2s,border-color .2s}
-.dc-btn:hover{background:#2e374c;border-color:#3d4a68}
+@keyframes cardGlow{0%,100%{box-shadow:none}50%{box-shadow:0 0 34px rgba(0,255,255,.13)}}
+.dfx-art{position:relative;width:86px;height:86px;flex:none}
+.dfx-large-wrap{width:100%;height:100%;border-radius:var(--dc-radius);overflow:hidden;background:#1e1f22;position:relative}
+.dfx-large{width:100%;height:100%;object-fit:cover;display:none}
+.dfx-ph{position:absolute;inset:0;display:grid;place-items:center;font-family:'Space Grotesk';font-size:30px;font-weight:700;color:#4e5865}
+.dfx-large-wrap.has-img .dfx-ph{display:none}
+.dfx-large-wrap.has-img .dfx-large{display:block}
+/* Hover sobre la imagen grande: Discord muestra el texto configurado */
+.dfx-large-wrap[data-hover]:hover::after{
+  content:attr(data-hover);position:absolute;inset:0;
+  background:rgba(0,0,0,.82);color:var(--dc-text);
+  font:500 12px/1.3 Inter;padding:8px;display:grid;place-items:center;text-align:center;
+}
+.dfx-small-wrap{position:absolute;right:-6px;bottom:-6px;width:34px;height:34px;border-radius:50%;background:var(--dc-raised);padding:3px}
+.dfx-small{width:100%;height:100%;border-radius:50%;object-fit:cover;background:#1e1f22;display:none}
+.dfx-small-wrap.has-img .dfx-small{display:block}
+/* Hover sobre la imagen pequeña */
+.dfx-small-wrap[data-hover]:hover::after{
+  content:attr(data-hover);position:absolute;bottom:130%;left:50%;transform:translateX(-50%);
+  background:#111214;color:var(--dc-text);font:500 11px/1.3 Inter;
+  padding:6px 8px;border-radius:6px;width:max-content;max-width:150px;text-align:center;
+}
+/* El cuerpo reserva el ancho de la imagen menos el hueco, así los
+   botones caen solos en su propia línea, como en Discord. */
+.dfx-card-body{flex:1 1 calc(100% - 100px);min-width:0;display:flex;flex-direction:column;gap:2px}
+.dfx-app{font-size:15px;font-weight:600;color:var(--dc-text);line-height:1.3}
+.dfx-app .tw{color:#9146ff;font-weight:700}
+.dfx-details{font-size:14px;font-weight:600;color:var(--dc-text);line-height:1.35}
+.dfx-state{font-size:14px;color:var(--dc-text);line-height:1.35;white-space:pre-wrap}
+.dfx-party{font-size:14px;color:var(--dc-text);margin-top:2px}
+.dfx-party.empty{color:var(--dc-dim)}
+.dfx-time{font-size:13px;color:var(--dc-dim);margin-top:3px;font-variant-numeric:tabular-nums}
+.dfx-empty{font-size:14px;color:var(--dc-dim)}
+.dfx-buttons{display:flex;gap:8px;margin-top:2px;flex-wrap:wrap;flex-basis:100%}
+.dfx-btn{
+  font-size:13px;font-weight:500;text-decoration:none;color:var(--dc-text);
+  background:#313338;border:0;border-radius:var(--dc-radius);padding:8px 16px;
+  transition:background .15s;
+}
+.dfx-btn:hover{background:var(--dc-hover)}
+
+/* Botón "Seguir viendo" que Discord pone en streaming */
+.dfx-twitch{
+  display:inline-flex;align-items:center;gap:6px;background:#9146ff;color:#fff;
+  font:700 11px/1 Inter;letter-spacing:.04em;padding:5px 9px;border-radius:5px;
+  margin-bottom:8px;width:fit-content;
+}
+.dfx-twitch .tw-logo{width:13px;height:13px;flex:none}
+.dfx-twitch .live{font-weight:500;opacity:.92}
+
+.dfx-note{
+  margin-top:10px;font-size:10px;color:var(--text-3);letter-spacing:.03em;
+  display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+}
+.dfx-note .dot{width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);flex:none}
+.dfx-note.err .dot{background:var(--danger);box-shadow:0 0 8px var(--danger)}
+.dfx-note.err{color:#ff8c8c}
 
 .divider{height:1px;background:var(--stroke);margin:4px 0 16px}
 
@@ -407,30 +527,6 @@ body{
     <div class="panel-head">
       <span class="kicker">01 / Presencia en Discord</span>
       <span class="live-tag"><span class="led on"></span> LIVE</span>
-    </div>
-
-    <div class="dc-frame">
-      <div class="dc-card">
-        <div class="dc-art">
-          <div class="dc-large-wrap">
-            <img class="dc-large" id="dcLarge" alt="">
-            <div class="dc-ph"><span id="dcPhLetter">P</span></div>
-          </div>
-          <div class="dc-small-wrap"><img class="dc-small" id="dcSmall" alt=""></div>
-        </div>
-        <div class="dc-body">
-          <div class="dc-app" id="dcApp">Playing PRESENCE</div>
-          <div class="dc-details" id="dcDetails">Sin presencia activa</div>
-          <div class="dc-state" id="dcState"></div>
-          <div class="dc-party" id="dcParty"></div>
-          <div class="dc-stream" id="dcStream"></div>
-          <div class="dc-elapsed">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-            <span id="dcElapsed">00:00</span>
-          </div>
-          <div class="dc-buttons" id="dcButtons"></div>
-        </div>
-      </div>
     </div>
 
     <div class="divider"></div>
@@ -689,6 +785,71 @@ body{
       </div>
     </div>
   </section>
+
+  <!-- ============================================================
+       Columna derecha: previsualización pixel-perfect del perfil.
+       Se queda pegada al hacer scroll en escritorio y se va debajo
+       en móvil.
+       ============================================================ -->
+  <aside class="preview-col">
+    <section class="glass panel">
+      <div class="panel-head">
+        <span class="kicker">Perfil en Discord</span>
+        <span class="tag" id="dfxWho">—</span>
+      </div>
+
+      <div class="dfx" id="dfx">
+        <!-- Banner -->
+        <div class="dfx-banner" id="dfxBanner"></div>
+
+        <div class="dfx-top">
+          <!-- Avatar + estado -->
+          <div class="dfx-avatar-row">
+            <div class="dfx-avatar-box" id="dfxAvatarBox">
+              <img class="dfx-avatar" id="dfxAvatar" alt="">
+              <div class="dfx-avatar-fallback" id="dfxAvatarFallback"></div>
+              <img class="dfx-deco" id="dfxDeco" alt="" hidden>
+              <div class="dfx-presence invisible" id="dfxPresence"></div>
+            </div>
+          </div>
+
+          <!-- Nombre, tag e insignias -->
+          <div class="dfx-names">
+            <span class="dfx-name" id="dfxName">Conectando…</span>
+            <span class="dfx-tag" id="dfxTag"></span>
+          </div>
+          <div class="dfx-badges" id="dfxBadges"></div>
+        </div>
+
+        <div class="dfx-body">
+          <!-- Custom status (burbuja del perfil) -->
+          <div class="dfx-custom muted" id="dfxCustom"><span class="cs-text">Sin estado personalizado</span></div>
+
+          <!-- Tarjeta de actividad -->
+          <div class="dfx-card">
+            <div class="dfx-art">
+              <div class="dfx-large-wrap" id="dfxLargeWrap">
+                <img class="dfx-large" id="dfxLarge" alt="">
+                <div class="dfx-ph">P</div>
+              </div>
+              <div class="dfx-small-wrap" id="dfxSmallWrap"><img class="dfx-small" id="dfxSmall" alt=""></div>
+            </div>
+            <div class="dfx-card-body">
+              <div id="dfxTwitch"></div>
+              <div class="dfx-app" id="dfxApp">Playing PRESENCE</div>
+              <div class="dfx-details" id="dfxDetails">Sin presencia activa</div>
+              <div class="dfx-state" id="dfxState"></div>
+              <div class="dfx-party empty" id="dfxParty"></div>
+              <div class="dfx-time" id="dfxTime"></div>
+            </div>
+            <div class="dfx-buttons" id="dfxButtons"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dfx-note" id="dfxNote"><span class="dot"></span><span id="dfxNoteText">Perfil sincronizado con Discord.</span></div>
+    </section>
+  </aside>
 
 </main>
 
@@ -1320,6 +1481,13 @@ if (savedForm && typeof savedForm === 'object') fillForm(savedForm);
       updateStateRotationUI();
       updateProfileRotationUI();
       setConn(state.rpc.connected, state.rpc.error, state.rpc.verified);
+      /* El perfil puede venir ya cacheado en el init; si no, se pide. */
+      if (data.profile) applyProfile(data.profile, null);
+      else loadProfile();
+    });
+
+    socket.on('profile', function (payload) {
+      applyProfile(payload && payload.profile, payload && payload.error);
     });
 
     socket.on('rpcStatus', function (s) {
@@ -1542,54 +1710,257 @@ function setConn(connected, error, verified) {
     $('btnWarning').style.display = msgs.length ? '' : 'none';
   }
 
+  /* ============================================================
+     Tarjeta de perfil pixel-perfect.
+
+     Reproduce lo que Discord pinta de verdad: banner, avatar con
+     insignia de estado, nombre de display con su color de acento,
+     insignias de la cuenta, burbuja de custom status y la tarjeta de
+     actividad con hover de imágenes, temporizadores en vivo, botones y
+     el distintivo morado de Twitch en streaming.
+     ============================================================ */
+  var TWITCH_PURPLE = '#9146ff';
+
+  /* Iconos de insignia dibujados a mano: Discord no expone la URL del
+     SVG de cada insignia, así que se aproximan los glifos reales. */
+  var BADGE_SVG = {
+    'Discord Staff': '<svg viewBox="0 0 24 24" fill="#5865f2"><path d="M20.3 4.6A19 19 0 0 0 15.4 3l-.2.4c1.7.4 2.5.9 3.4 1.6a13.4 13.4 0 0 0-11.2 0C8.1 4.3 9 3.8 10.6 3.4L10.4 3a19 19 0 0 0-4.9 1.6C2.6 8.2 1.9 11.7 2.3 15.1a19 19 0 0 0 5.8 2.9l1.2-1.7c-.8-.3-1.5-.6-2.2-1.1l.5-.4a13.6 13.6 0 0 0 11.6 0l.5.4c-.7.5-1.4.8-2.2 1.1l1.2 1.7a19 19 0 0 0 5.8-2.9c.5-4-.7-7.5-3.2-10.5ZM8.6 13.3c-1.1 0-2-1-2-2.3s.9-2.3 2-2.3 2 1 2 2.3-.9 2.3-2 2.3Zm6.8 0c-1.1 0-2-1-2-2.3s.9-2.3 2-2.3 2 1 2 2.3-.9 2.3-2 2.3Z"/></svg>',
+    'Partnered Server Owner': '<svg viewBox="0 0 24 24" fill="#5865f2"><path d="M20.3 4.6A19 19 0 0 0 15.4 3l-.2.4c1.7.4 2.5.9 3.4 1.6a13.4 13.4 0 0 0-11.2 0C8.1 4.3 9 3.8 10.6 3.4L10.4 3a19 19 0 0 0-4.9 1.6C2.6 8.2 1.9 11.7 2.3 15.1a19 19 0 0 0 5.8 2.9l1.2-1.7c-.8-.3-1.5-.6-2.2-1.1l.5-.4a13.6 13.6 0 0 0 11.6 0l.5.4c-.7.5-1.4.8-2.2 1.1l1.2 1.7a19 19 0 0 0 5.8-2.9c.5-4-.7-7.5-3.2-10.5ZM8.6 13.3c-1.1 0-2-1-2-2.3s.9-2.3 2-2.3 2 1 2 2.3-.9 2.3-2 2.3Zm6.8 0c-1.1 0-2-1-2-2.3s.9-2.3 2-2.3 2 1 2 2.3-.9 2.3-2 2.3Z"/></svg>',
+    'HypeSquad Events': '<svg viewBox="0 0 24 24" fill="#f9a62b"><path d="M12 1.5 14.4 6l5.1.7-3.7 3.6.9 5.1L12 12.9 7.3 15.4l.9-5.1L4.5 6.7 9.6 6 12 1.5Z"/></svg>',
+    'Bug Hunter Level 1': '<svg viewBox="0 0 24 24" fill="#3ba55c"><path d="M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm0 2.5a5.5 5.5 0 0 1 5.2 7.7l-2-2H8.8l-2 2A5.5 5.5 0 0 1 11 5.5Zm-3.3 9.8 2-2h2.6l2 2A5.5 5.5 0 0 1 7.7 15.3Z"/></svg>',
+    'Bug Hunter Level 2': '<svg viewBox="0 0 24 24" fill="#3ba55c"><path d="M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm0 2.5a5.5 5.5 0 0 1 5.2 7.7l-2-2H8.8l-2 2A5.5 5.5 0 0 1 11 5.5Zm-3.3 9.8 2-2h2.6l2 2A5.5 5.5 0 0 1 7.7 15.3Z"/><path d="m17.5 2 .6 1.6L19.7 4l-1.6.5-.6 1.6-.6-1.6-1.6-.5 1.6-.4.6-1.6Z"/></svg>',
+    'HypeSquad Bravery': '<svg viewBox="0 0 24 24" fill="#9c84ef"><path d="M12 2 4 5.5v6c0 4.7 3.3 8.6 8 9.5 4.7-.9 8-4.8 8-9.5v-6L12 2Z"/></svg>',
+    'HypeSquad Brilliance': '<svg viewBox="0 0 24 24" fill="#f47fff"><path d="M12 2 4 5.5v6c0 4.7 3.3 8.6 8 9.5 4.7-.9 8-4.8 8-9.5v-6L12 2Z"/></svg>',
+    'HypeSquad Balance': '<svg viewBox="0 0 24 24" fill="#45ddff"><path d="M12 2 4 5.5v6c0 4.7 3.3 8.6 8 9.5 4.7-.9 8-4.8 8-9.5v-6L12 2Z"/></svg>',
+    'Early Supporter': '<svg viewBox="0 0 24 24" fill="#ff73fa"><path d="M12 21s-8-4.9-8-10.4A4.6 4.6 0 0 1 8 6c1.6 0 3 .8 4 2 1-1.2 2.4-2 4-2a4.6 4.6 0 0 1 4 4.6C20 16.1 12 21 12 21Z"/></svg>',
+    'Nitro': '<svg viewBox="0 0 24 24" fill="#ff73fa"><path d="M12 1.8 6.4 12h4L8 22.2 18.6 10h-4.4L17 1.8H12Z"/></svg>',
+    'Nitro Basic': '<svg viewBox="0 0 24 24" fill="#ff73fa"><path d="M12 1.8 6.4 12h4L8 22.2 18.6 10h-4.4L17 1.8H12Z"/></svg>',
+    'Early Verified Bot Developer': '<svg viewBox="0 0 24 24" fill="#5865f2"><path d="M12 1.6 4 4.8v6.4c0 5 3.6 9.2 8 10.2 4.4-1 8-5.2 8-10.2V4.8l-8-3.2Z"/><path d="m10.6 15.4-3-3 1.5-1.5 1.5 1.5 4-4L16 9.9l-5.4 5.5Z" fill="#fff"/></svg>',
+    'Moderator Programs Alumni': '<svg viewBox="0 0 24 24" fill="#3ba55c"><path d="M12 2 4 5v7c0 4.6 3.4 8.8 8 10 4.6-1.2 8-5.4 8-10V5l-8-3Z"/></svg>',
+    'Active Developer': '<svg viewBox="0 0 24 24" fill="#3ba55c"><path d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4Zm5.2 0 4.6-4.6L16 12l4.6 4.6L22 18l-6-6-6 6 1.4-1.4Z"/></svg>',
+  };
+
+  function badgeIcon(name) {
+    return BADGE_SVG[name] || '<svg viewBox="0 0 24 24" fill="' + (name === 'Nitro' || name === 'Nitro Basic' ? '#ff73fa' : '#5865f2') + '"><circle cx="12" cy="12" r="9"/></svg>';
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
+
+  /* Avatar y banner vienen de la API de Discord; si el usuario escribe
+     algo raro en la URL se escapa siempre antes de tocar el DOM. */
+  function safeUrl(u) {
+    var v = String(u || '').trim();
+    if (!/^https?:\/\//i.test(v)) return '';
+    return v.replace(/"/g, '%22');
+  }
+
+  /* ============================================================
+     Perfil real de la cuenta (avatar, banner, insignias…)
+     Se pide a /api/profile, que lo lee de Discord con el token y
+     nunca lo devuelve al navegador.
+     ============================================================ */
+  var profileLoaded = false;
+
+  function applyProfile(p, error) {
+    profileLoaded = true;
+    state.profile = p || null;
+    if (error && !p) {
+      renderProfile(null, 'No se pudo leer el perfil: ' + error, true);
+      return;
+    }
+    if (!p) {
+      renderProfile(null, 'Conecta el RPC para ver tu perfil real de Discord.', false);
+      return;
+    }
+    renderProfile(p, 'Perfil sincronizado con Discord.', false);
+  }
+
+  function loadProfile() {
+    fetch('/api/profile')
+      .then(function (r) { return r.json(); })
+      .then(function (j) { applyProfile(j && j.profile, j && j.error); })
+      .catch(function (e) { renderProfile(null, 'No se pudo contactar al servidor: ' + e.message, true); });
+  }
+
+  /* La burbuja de custom status se pinta en el perfil; se actualiza sola
+     mientras el usuario escribe. */
+  function renderCustomStatusLine() {
+    var el = $('dfxCustom');
+    if (!el) return;
+    var emoji = String(($('psEmoji') && $('psEmoji').value) || '').trim();
+    var text = String(($('psText') && $('psText').value) || '').trim();
+    var full = (emoji ? emoji + ' ' : '') + text;
+    var txt = el.querySelector('.cs-text');
+    if (!txt) return;
+    if (full) {
+      el.classList.remove('muted');
+      txt.textContent = full;
+    } else {
+      el.classList.add('muted');
+      txt.textContent = 'Sin estado personalizado';
+    }
+  }
+
+  function renderProfile(p, noteText, noteError) {
+    var note = $('dfxNote');
+    if (note) note.classList.toggle('err', !!noteError);
+    var noteEl = $('dfxNoteText');
+    if (noteEl) noteEl.textContent = noteText;
+
+    if (!p) {
+      $('dfxWho').textContent = '—';
+      $('dfxName').textContent = 'Sin perfil';
+      $('dfxTag').textContent = '';
+      $('dfxBadges').innerHTML = '';
+      return;
+    }
+
+    $('dfxWho').textContent = p.username || '—';
+    $('dfxName').textContent = p.displayName || p.username || '—';
+    /* El color de acento solo se aplica si la cuenta lo tiene. */
+    var nameEl = $('dfxName');
+    if (p.accentColor !== null && p.accentColor !== undefined) {
+      var hex = '#' + (Number(p.accentColor) >>> 0).toString(16).padStart(6, '0');
+      nameEl.classList.add('has-accent');
+      nameEl.style.setProperty('--accent-color', hex);
+    } else {
+      nameEl.classList.remove('has-accent');
+    }
+    $('dfxTag').textContent = p.legacyTag || (p.username ? '@' + p.username : '');
+
+    var avatar = safeUrl(p.avatar);
+    var box = $('dfxAvatarBox');
+    var img = $('dfxAvatar');
+    var fb = $('dfxAvatarFallback');
+    if (avatar) {
+      img.src = avatar;
+      box.classList.remove('no-img');
+      fb.textContent = '';
+    } else {
+      img.removeAttribute('src');
+      box.classList.add('no-img');
+      /* Sin avatar, Discord pinta un degradado con la inicial. */
+      fb.style.backgroundImage = p.avatarFallback || '';
+      fb.textContent = (p.displayName || p.username || '?').charAt(0).toUpperCase();
+    }
+
+    var deco = safeUrl(p.avatarDecoration);
+    var decoImg = $('dfxDeco');
+    if (deco) { decoImg.src = deco; decoImg.hidden = false; } else { decoImg.hidden = true; }
+
+    var banner = safeUrl(p.banner);
+    var bannerEl = $('dfxBanner');
+    if (banner) {
+      bannerEl.style.backgroundImage = 'url("' + banner + '")';
+      bannerEl.classList.add('has-img');
+    } else {
+      bannerEl.style.backgroundImage = '';
+      bannerEl.classList.remove('has-img');
+      /* Discord usa un morado liso cuando no hay banner. */
+      bannerEl.style.background = p.bannerFallback || '#4e2a8a';
+    }
+
+    var badges = Array.isArray(p.badges) ? p.badges : [];
+    $('dfxBadges').innerHTML = badges.map(function (b) {
+      return '<span class="dfx-badge" data-name="' + esc(b.name) + '" title="' + esc(b.name) + '">' + badgeIcon(b.name) + '</span>';
+    }).join('');
+  }
+
+  function setPresence(status) {
+    var el = $('dfxPresence');
+    if (!el) return;
+    var s = ['online', 'idle', 'dnd', 'invisible'].indexOf(status) >= 0 ? status : 'invisible';
+    el.className = 'dfx-presence ' + s;
+  }
+
   /* ---------------- Tarjeta de preview ---------------- */
   function renderCard(a) {
     a = a || {};
     state.cardActivity = a;
 
     var app = String(a.name || a.applicationId || state.settings.applicationId || 'PRESENCE');
-    $('dcApp').textContent = (TYPE_LABELS[a.type] || 'Playing') + ' ' + app;
-    $('dcPhLetter').textContent = (a.details || app).charAt(0).toUpperCase();
+    var typeLabel = TYPE_LABELS[a.type] || 'Playing';
+    var isStream = typeLabel === 'Streaming';
 
-    var lw = $('dcLarge').closest('.dc-large-wrap');
+    /* Discord pinta el nombre de la app; si es Twitch, morado. */
+    var appEl = $('dfxApp');
+    if (/twitch/i.test(app) || /twitch/i.test(a.streamUrl || '')) {
+      appEl.innerHTML = '<span class="tw">Streaming ' + esc(app) + '</span>';
+    } else {
+      appEl.textContent = typeLabel + ' ' + app;
+    }
+
+    var ph = $('dfxLargeWrap').querySelector('.dfx-ph');
+    if (ph) ph.textContent = (a.details || app).charAt(0).toUpperCase();
+
+    /* Imagen grande + texto de hover (Discord lo muestra al pasar el ratón). */
+    var lw = $('dfxLargeWrap');
     if (a.largeImageUrl) {
-      $('dcLarge').onerror = function () { lw.classList.remove('has-img'); };
-      $('dcLarge').src = a.largeImageUrl; lw.classList.add('has-img');
+      $('dfxLarge').onerror = function () { lw.classList.remove('has-img'); lw.removeAttribute('data-hover'); };
+      $('dfxLarge').src = a.largeImageUrl;
+      lw.classList.add('has-img');
+      if (a.largeImageText) lw.setAttribute('data-hover', a.largeImageText);
+      else lw.removeAttribute('data-hover');
     } else {
-      $('dcLarge').onerror = null;
-      $('dcLarge').removeAttribute('src'); lw.classList.remove('has-img');
+      $('dfxLarge').onerror = null;
+      $('dfxLarge').removeAttribute('src');
+      lw.classList.remove('has-img');
+      lw.removeAttribute('data-hover');
     }
 
-    var sw = $('dcSmall').closest('.dc-small-wrap');
+    var sw = $('dfxSmallWrap');
     if (a.smallImageUrl) {
-      $('dcSmall').onerror = function () { sw.classList.remove('has-img'); };
-      $('dcSmall').src = a.smallImageUrl; sw.classList.add('has-img');
+      $('dfxSmall').onerror = function () { sw.classList.remove('has-img'); sw.removeAttribute('data-hover'); };
+      $('dfxSmall').src = a.smallImageUrl;
+      sw.classList.add('has-img');
+      if (a.smallImageText) sw.setAttribute('data-hover', a.smallImageText);
+      else sw.removeAttribute('data-hover');
     } else {
-      $('dcSmall').onerror = null;
-      $('dcSmall').removeAttribute('src'); sw.classList.remove('has-img');
+      $('dfxSmall').onerror = null;
+      $('dfxSmall').removeAttribute('src');
+      sw.classList.remove('has-img');
+      sw.removeAttribute('data-hover');
     }
 
-    $('dcDetails').textContent = a.details || 'Sin presencia activa';
-    $('dcState').textContent = a.state || '';
+    $('dfxDetails').textContent = a.details || 'Sin presencia activa';
+    $('dfxState').textContent = a.state || '';
 
-    var party = '';
-    if (a.partySize && a.partyMax) party = '👥 ' + a.partySize + '/' + a.partyMax;
-    $('dcParty').textContent = party;
-
-    var stream = '';
-    if (a.streamUrl && TYPE_LABELS[a.type] === 'Streaming') {
-      try { stream = '🔴 En directo · ' + new URL(a.streamUrl).hostname; } catch (e) { stream = '🔴 En directo'; }
+    var party = $('dfxParty');
+    if (a.partySize && a.partyMax) {
+      party.classList.remove('empty');
+      party.textContent = a.partySize + ' de ' + a.partyMax + (a.partyId ? '' : '');
+    } else if (a.partyId) {
+      party.classList.remove('empty');
+      party.textContent = 'En un grupo';
+    } else {
+      party.classList.add('empty');
+      party.textContent = '';
     }
-    $('dcStream').textContent = stream;
 
-    var box = $('dcButtons');
+    /* Distintivo morado de streaming, como el de Discord. */
+    var tw = $('dfxTwitch');
+    if (isStream && a.streamUrl) {
+      var host = '';
+      try { host = new URL(a.streamUrl).hostname; } catch (e) { host = ''; }
+      tw.innerHTML = '<span class="dfx-twitch">' +
+        '<svg class="tw-logo" viewBox="0 0 24 24" fill="#fff"><path d="M4.3 0 1 3.9v5.4h3.6V21l4.6-4.4h3.5L20.6 12V0H4.3Zm14.4 11.3-2.8 2.8h-3.3l-2.7 2.6v-2.6H6.7V1.8h12v9.5Z"/><path d="M14.8 5.5h2v5.4h-2V5.5Zm-5 0h2v5.4h-2V5.5Z"/></svg>' +
+        '<span>En directo</span>' + (host ? '<span class="live">' + esc(host) + '</span>' : '') + '</span>';
+    } else {
+      tw.innerHTML = '';
+    }
+
+    var box = $('dfxButtons');
     box.innerHTML = '';
     var btns = [];
     if (a.button1Text && normalizeUrl(a.button1Url)) btns.push([a.button1Text, normalizeUrl(a.button1Url)]);
     if (a.button2Text && normalizeUrl(a.button2Url)) btns.push([a.button2Text, normalizeUrl(a.button2Url)]);
     for (var i = 0; i < btns.length; i++) {
       var el = document.createElement('a');
-      el.className = 'dc-btn';
+      el.className = 'dfx-btn';
       el.textContent = btns[i][0];
       el.href = btns[i][1];
       el.target = '_blank';
@@ -1602,12 +1973,13 @@ function setConn(connected, error, verified) {
   function renderPreview() {
     if (!$('inEnabled').checked) {
       state.cardActivity = null;
-      $('dcDetails').textContent = 'RPC personalizado desactivado';
-      $('dcState').textContent = '';
-      $('dcParty').textContent = '';
-      $('dcStream').textContent = '';
-      $('dcButtons').innerHTML = '';
-      $('dcElapsed').textContent = '00:00';
+      $('dfxDetails').textContent = 'RPC personalizado desactivado';
+      $('dfxState').textContent = '';
+      $('dfxParty').textContent = '';
+      $('dfxParty').classList.add('empty');
+      $('dfxTwitch').innerHTML = '';
+      $('dfxButtons').innerHTML = '';
+      $('dfxTime').textContent = '';
       return;
     }
     renderCard(readAdvanced());
@@ -1616,19 +1988,24 @@ function setConn(connected, error, verified) {
   function renderRpc(rpcState) {
     if (rpcState && rpcState.activity) renderCard(rpcState.activity);
     else renderPreview();
+    /* El estado online real se refleja en el puntito del avatar. */
+    if (rpcState && rpcState.connected) setPresence('online');
   }
 
+  /* Los temporizadores avanzan solos, como los de Discord. */
   function tickElapsed() {
     var a = state.cardActivity;
+    var el = $('dfxTime');
+    if (!el) return;
     var now = Date.now();
     var start = a && a.startTimestamp ? new Date(a.startTimestamp).getTime() : 0;
     var end = a && a.endTimestamp ? new Date(a.endTimestamp).getTime() : 0;
     if (end > now) {
-      $('dcElapsed').textContent = fmtT(Math.max(0, Math.ceil((end - now) / 1000)));
+      el.textContent = 'Termina en ' + fmtT(Math.max(0, Math.ceil((end - now) / 1000)));
     } else if (start) {
-      $('dcElapsed').textContent = fmtT(Math.max(0, Math.floor((now - start) / 1000)));
+      el.textContent = fmtT(Math.max(0, Math.floor((now - start) / 1000))) + ' transcurrido';
     } else {
-      $('dcElapsed').textContent = '00:00';
+      el.textContent = '';
     }
   }
 
@@ -1992,6 +2369,14 @@ function setConn(connected, error, verified) {
       if (el) { el.addEventListener('input', refreshAssetHints); el.addEventListener('change', refreshAssetHints); }
     });
     refreshAssetHints();
+    ['psEmoji', 'psText'].forEach(function (id) {
+      var el = $(id);
+      if (el) {
+        el.addEventListener('input', renderCustomStatusLine);
+        el.addEventListener('change', renderCustomStatusLine);
+      }
+    });
+    renderCustomStatusLine();
     $('presenceForm').addEventListener('submit', function (e) {
       e.preventDefault();
       if (!$('inEnabled').checked) {
@@ -2158,6 +2543,28 @@ function setConn(connected, error, verified) {
   } else {
     init();
   }
+
+  /* ------------------------------------------------------------
+     Service worker (instalable como app).
+     Solo cachea la carcasa estática; /api/* y /socket.io/* siempre van
+     a la red para que el estado del RPC nunca salga de fecha.
+     ------------------------------------------------------------ */
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function (err) {
+        /* Sin SW la app funciona igual: solo se pierde el modo offline. */
+        if (window.console) console.warn('[PWA] no se pudo registrar el service worker:', err.message);
+      });
+    });
+  }
+
+  /* Atajo del manifest: "Actualizar estado" sin que el usuario toque nada. */
+  try {
+    if (new URLSearchParams(location.search).get('action') === 'apply') {
+      var applyBtn = $('btnUpdate');
+      if (applyBtn) setTimeout(function () { applyBtn.click(); }, 300);
+    }
+  } catch (e) { /* search mal formada: se ignora */ }
 })();
 </script>
 </body>
