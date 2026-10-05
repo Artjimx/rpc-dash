@@ -426,27 +426,29 @@ body{
           <span class="label">Stream URL (Twitch / YouTube)</span>
           <input type="url" id="inStreamUrl" placeholder="https://www.twitch.tv/…">
         </div>
-        <div class="field">
+<div class="field">
           <span class="label">Large Image URL</span>
           <input type="text" id="inLargeUrl" placeholder="URL https, nombre de asset (ej: bigimage) o App ID">
           <div class="upload-row">
             <input type="file" id="inLargeFile" accept="image/*" hidden>
             <button type="button" class="btn ghost" id="btnLargeUpload">Subir Imagen</button>
-            <span class="up-hint">Se sube a public/uploads del servidor y autocompleta la URL. Ojo: Discord no ve URLs locales; si sale en «?», usa una URL pública https o un asset del Developer Portal.</span>
+            <span class="up-hint" id="assetHintLarge">Pega la URL o sube el archivo: con un Application ID válido la imagen se registra sola en los Art Assets de tu app.</span>
           </div>
+        </div>
         </div>
         <div class="field">
           <span class="label">Large Image Text</span>
           <input type="text" id="inLargeText" placeholder="Título al pasar el cursor">
         </div>
-        <div class="field">
+<div class="field">
           <span class="label">Small Image URL</span>
           <input type="text" id="inSmallUrl" placeholder="URL https, nombre de asset (ej: smallicon) o App ID">
           <div class="upload-row">
             <input type="file" id="inSmallFile" accept="image/*" hidden>
             <button type="button" class="btn ghost" id="btnSmallUpload">Subir Imagen</button>
-            <span class="up-hint">Se sube a public/uploads del servidor y autocompleta la URL. Ojo: Discord no ve URLs locales; si sale en «?», usa una URL pública https o un asset del Developer Portal.</span>
+            <span class="up-hint" id="assetHintSmall">Pega la URL o sube el archivo: con un Application ID válido la imagen se registra sola en los Art Assets de tu app.</span>
           </div>
+        </div>
         </div>
         <div class="field">
           <span class="label">Small Image Text</span>
@@ -740,6 +742,59 @@ body{
     bindImagePaste('inSmallUrl', 'btnSmallUpload');
   }
 
+  /* ---------------- Registro automático de imágenes ---------------- */
+  var ASSET_SLOT_HINT = { large: 'assetHintLarge', small: 'assetHintSmall' };
+  var assetBaseText = {};
+
+  function assetSlotValue(slot) {
+    var input = $(slot === 'small' ? 'inSmallUrl' : 'inLargeUrl');
+    return input ? input.value.trim() : '';
+  }
+
+  function paintAssetHint(slot, text, tone) {
+    var id = ASSET_SLOT_HINT[slot];
+    var el = $(id);
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = tone === 'error' ? '#ff6b6b' : (tone === 'ok' ? '#4ade80' : '');
+  }
+
+  /* Sin Application ID la tarjeta RPC no puede resolver una URL: el
+     proxy mp: no sirve para la Presence. Se avisa antes de que el
+     usuario gaste tiempo wondering por qué sale el "?" de Discord. */
+  function refreshAssetHints() {
+    ['large', 'small'].forEach(function (slot) {
+      var value = assetSlotValue(slot);
+      if (!value) { paintAssetHint(slot, 'Pega la URL o sube el archivo: con un Application ID válido la imagen se registra sola en los Art Assets de tu app.'); return; }
+      var isUrl = /^https?:\/\//i.test(value);
+      var appId = $('inAppId').value.trim();
+      if (isUrl && !/^[0-9]{17,20}$/.test(appId)) {
+        paintAssetHint(slot, 'Falta el Application ID: Discord no acepta URLs en la Presence. Con el ID de una app tuya, esta imagen se sube sola.', 'error');
+      } else if (isUrl) {
+        paintAssetHint(slot, 'Se{subirá automáticamente a los Art Assets de tu aplicación al guardar.', 'ok');
+      } else {
+        paintAssetHint(slot, 'Valor directo: se enviará tal cual a Discord.', null);
+      }
+    });
+  }
+
+  function applyAssetSync(payload) {
+    if (!payload || !payload.items) return;
+    Object.keys(payload.items).forEach(function (slot) {
+      var status = payload.items[slot];
+      if (status === 'subiendo') {
+        paintAssetHint(slot, 'Subiendo la imagen a tu Discord Application…', 'ok');
+      } else if (status === 'listo') {
+        paintAssetHint(slot, 'Imagen registrada en tu aplicación y aplicada en la Presence.', 'ok');
+      } else if (status === 'error') {
+        paintAssetHint(slot, 'No se pudo registrar: ' + (payload.lastError || 'error desconocido'), 'error');
+      }
+    });
+    if (payload.lastError) {
+      toast('Assets: ' + payload.lastError, 'err');
+    }
+  }
+
   /* ---------------- Toasts ---------------- */
   function toast(msg, type) {
     var el = document.createElement('div');
@@ -813,8 +868,9 @@ body{
       if (data.stateRotation) state.stateRotation = data.stateRotation;
       if (data.profileRotation) state.profileRotation = data.profileRotation;
       var savedForm = lsGet(LS.form, null);
-      if (savedForm && typeof savedForm === 'object') fillForm(savedForm);
-      else fillSettings(state.settings);
+if (savedForm && typeof savedForm === 'object') fillForm(savedForm);
+    else fillSettings(state.settings);
+    refreshAssetHints();
       renderRpc(state.rpc);
       updateRotationUI();
       updateStateRotationUI();
@@ -824,9 +880,13 @@ body{
 
     socket.on('rpcStatus', function (s) {
       state.rpc = s;
-      setConn(s.connected, s.error, s.verified);
-      renderRpc(s);
-    });
+setConn(s.connected, s.error, s.verified);
+    renderRpc(s);
+  });
+
+  socket.on('assetSync', function (payload) {
+    applyAssetSync(payload);
+  });
 
     socket.on('presenceUpdated', function (activity) {
       state.rpc.activity = activity;
@@ -1482,6 +1542,11 @@ function setConn(connected, error, verified) {
   /* ---------------- Eventos del DOM ---------------- */
   function bindEvents() {
     bindImageUploads();
+    ['inAppId', 'inLargeUrl', 'inSmallUrl'].forEach(function (id) {
+      var el = $(id);
+      if (el) { el.addEventListener('input', refreshAssetHints); el.addEventListener('change', refreshAssetHints); }
+    });
+    refreshAssetHints();
     $('presenceForm').addEventListener('submit', function (e) {
       e.preventDefault();
       if (!$('inEnabled').checked) {

@@ -32,6 +32,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, RichPresence, CustomStatus, Intents, Constants } from 'discord.js-selfbot-v13';
+import {
+  sourceKey,
+  buildAssetName,
+  loadImageBuffer,
+  uploadApplicationAsset,
+  deleteApplicationAsset,
+  IDEAL_ASSET_BYTES,
+} from './discordAssets.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.SERVER_PORT) || Number(process.env.PORT) || 3000;
@@ -115,6 +123,9 @@ const DEFAULT_SETTINGS = {
   button2Url: '',
   profileStatuses: [],
   profileRotationSeconds: 60,
+  /* Assets ya subidos a la Discord Application: { "<clave>": {name, id} }.
+     Evita volver a subir la misma imagen en cada arranque. */
+  assetRegistry: {},
 };
 
 /* Semilla opcional: si SEED_SETTINGS_JSON existe y no hay
@@ -428,7 +439,116 @@ function isValidAppId(id) {
    Discord resuelve este string contra los assets de la app. */
 const CLEAN_ASSET_KEY = /^[A-Za-z0-9_\-.]{1,128}$/;
 
-async function resolveRichImage(client, value, appId) {
+/* ============================================================
+   Registro automático de imágenes en la Discord Application
+   ============================================================
+
+   El usuario pega una URL o sube un archivo y no tiene que hacer
+   nada más: si hay Application ID, la imagen se descarga y se sube
+   sola a los Art Assets de esa app, devolviendo el nombre del asset
+   que es lo único que Discord acepta en large_image / small_image.
+
+   El resultado se guarda en settings.json (assetRegistry) para no
+   resubir la misma imagen en cada guardado o reinicio.
+   ============================================================ */
+
+let assetSync = { running: false, at: null, items: {}, lastError: null };
+
+function emitAssetSync() {
+  try {
+    io.emit('assetSync', assetSync);
+  } catch (err) {
+    /* io puede no existir todavia en pruebas unitarias */
+  }
+}
+
+function saveAssetRegistry(registry) {
+  try {
+    const current = loadSettings();
+    current.assetRegistry = registry;
+    saveSettings(current);
+    return current;
+  } catch (err) {
+    log.warn(`No se pudo guardar el registro de assets: ${err.message}`);
+    return loadSettings();
+  }
+}
+
+/**
+ * Sube la imagen si todavia no esta registrada y devuelve el nombre
+ * del asset. Si algo falla devuelve null y el llamador cae al proxy
+ * mp: para que la presencia no se rompa.
+ */
+async function registerImageAsset(client, value, appId, slot) {
+  const v = String(value || '').trim();
+  if (!v || !isValidAppId(appId)) return null;
+
+  /* Un App ID en el campo de imagen significa "usa el icono de la app":
+     el nombre del asset ES el Application ID. No hay nada que subir. */
+  if (isValidAppId(v)) return v;
+  if (/^(mp:|youtube:|spotify:|twitch:)/.test(v)) return null;
+
+  const key = sourceKey(appId, slot, v);
+  const saved = loadSettings();
+  const registry = { ...(saved.assetRegistry || {}) };
+
+  /* Ya subido: se reutiliza el nombre, sin red. */
+  const hit = registry[key];
+  if (hit && hit.name) return hit.name;
+
+  const token = connectedToken || USER_TOKEN_ENV;
+  const started = Date.now();
+  assetSync = { ...assetSync, running: true, at: started, lastError: null,
+    items: { ...assetSync.items, [slot]: 'subiendo' } };
+  emitAssetSync();
+
+  try {
+    const image = await loadImageBuffer(v, { uploadDir: UPLOAD_DIR });
+    if (!image) throw new Error('no se pudo obtener la imagen');
+
+    if (image.buffer.length > IDEAL_ASSET_BYTES) {
+      log.warn(`La imagen pesa ${Math.round(image.buffer.length / 1024)} KB: Discord puede recortarla en la Presence. Ideal menos de 256 KB.`);
+    }
+
+    const name = buildAssetName(slot, key);
+    const asset = await uploadApplicationAsset({
+      token,
+      appId: String(appId).trim(),
+      name,
+      buffer: image.buffer,
+      mime: image.mime,
+      filename: image.filename,
+    });
+
+    registry[key] = { name: asset.name, id: asset.id, at: new Date().toISOString() };
+    saveAssetRegistry(registry);
+
+    /* Limpieza best-effort del asset que este slot usaba antes. */
+    const previous = Object.values(registry).find((a) => a && a.name && a.name !== asset.name);
+    if (previous && previous.id) {
+      deleteApplicationAsset({ token, appId, assetId: previous.id });
+      for (const k of Object.keys(registry)) {
+        if (registry[k] && registry[k].id === previous.id) delete registry[k];
+      }
+      saveAssetRegistry(registry);
+    }
+
+    log.ok(`Asset "${asset.name}" subido a la aplicacion ${appId} (${slot}, ${Math.round(image.buffer.length / 1024)} KB, ${Date.now() - started} ms)`);
+    assetSync = { running: false, at: Date.now(), lastError: null,
+      items: { ...assetSync.items, [slot]: 'listo' } };
+    emitAssetSync();
+    return asset.name;
+  } catch (err) {
+    const message = String((err && err.message) || err);
+    log.error(`No se pudo subir la imagen a la aplicacion ${appId}: ${message}`);
+    assetSync = { running: false, at: Date.now(), lastError: message,
+      items: { ...assetSync.items, [slot]: 'error' } };
+    emitAssetSync();
+    return null;
+  }
+}
+
+async function resolveRichImage(client, value, appId, slot = 'large') {
   if (!value || typeof value !== 'string') return null;
   const v = value.trim();
   if (!v) return null;
@@ -452,6 +572,12 @@ async function resolveRichImage(client, value, appId) {
       return 'mp:' + v.replace(/^https?:\/\//i, (m) => m.replace('://', '/'));
     }
     if (isValidAppId(appId)) {
+      /* Camino principal: si hay Application ID, la imagen se sube sola a
+         los Art Assets de esa app y se devuelve su NOMBRE, que es lo que
+         Discord resuelve en large_image / small_image. */
+      const registered = await registerImageAsset(client, v, appId, slot);
+      if (registered) return registered;
+
       const cached = EXTERNAL_CACHE.get(v);
       if (cached) return cached;
       try {
@@ -525,7 +651,7 @@ async function buildRichPresence(c, a) {
     type !== ACTIVITY_TYPES.STREAMING && type !== ACTIVITY_TYPES.COMPETING;
 
   if (a.largeImageUrl) {
-    const img = await resolveRichImage(c, a.largeImageUrl, appId);
+    const img = await resolveRichImage(c, a.largeImageUrl, appId, 'large');
     if (img) {
       try { rp.setAssetsLargeImage(img); } catch (e) { log.warn(`Imagen grande ignorada: ${e.message}`); }
       if (a.largeImageText && largeTextHoverOnly) {
@@ -536,7 +662,7 @@ async function buildRichPresence(c, a) {
     }
   }
   if (a.smallImageUrl) {
-    const img = await resolveRichImage(c, a.smallImageUrl, appId);
+    const img = await resolveRichImage(c, a.smallImageUrl, appId, 'small');
     if (img) {
       try { rp.setAssetsSmallImage(img); } catch (e) { log.warn(`Imagen pequeña ignorada: ${e.message}`); }
       if (a.smallImageText) rp.setAssetsSmallText(String(a.smallImageText).slice(0, 128));
@@ -1415,6 +1541,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     settings: sanitizeSettings(loadSettings()),
     rpc: getRpcState(),
+    assets: { ...assetSync, registry: loadSettings().assetRegistry || {} },
     rotation: getRotationState(),
     stateRotation: getStateRotationState(),
     profileRotation: getProfileRotationState(),
