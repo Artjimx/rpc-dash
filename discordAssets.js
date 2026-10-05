@@ -16,6 +16,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { ensurePngSize } from './pngTool.js';
 
 const API_BASE = 'https://discord.com/api/v10';
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -261,21 +262,43 @@ function friendlyError(status, payload) {
  * Presence es /oauth2/applications/{id}/assets y espera JSON con la
  * imagen en base64. Con multipart devolvía 400 "Invalid Form Body".
  *
- * @returns {Promise<{id: string, name: string}>} el asset creado
+ * @returns {Promise<{id: string, name: string, scaled?: object}>}
  */
 export async function uploadApplicationAsset({ token, appId, name, buffer, mime, filename }) {
   if (!token) throw new Error('no hay USER_TOKEN configurado');
   if (!isSnowflake(appId)) throw new Error('el Application ID no tiene un formato válido');
 
+  let payloadBuffer = buffer;
+  let scaled = null;
+
   const size = imageSize(buffer, mime);
   if (size && (size.width < MIN_ASSET_SIZE || size.height < MIN_ASSET_SIZE)) {
-    throw new Error(
-      `la imagen es de ${size.width}x${size.height} y Discord exige un mínimo de ${MIN_ASSET_SIZE}x${MIN_ASSET_SIZE} px`,
-    );
+    /* Si es un PNG se escala solo hasta el mínimo: es el único formato
+       que se puede re-codificar sin meter una dependencia nativa. */
+    if (mime === 'image/png') {
+      try {
+        const result = ensurePngSize(buffer, MIN_ASSET_SIZE);
+        if (result.scaled) {
+          payloadBuffer = result.buffer;
+          scaled = { from: `${size.width}x${size.height}`, to: `${result.width}x${result.height}` };
+        }
+      } catch (err) {
+        throw new Error(
+          `la imagen es de ${size.width}x${size.height} y Discord exige ${MIN_ASSET_SIZE}x${MIN_ASSET_SIZE} px, ` +
+          `y no se pudo ampliar automáticamente (${err.message})`,
+        );
+      }
+    }
+    if (!scaled) {
+      throw new Error(
+        `la imagen es de ${size.width}x${size.height} y Discord exige un mínimo de ${MIN_ASSET_SIZE}x${MIN_ASSET_SIZE} px. ` +
+        `Amplíala a PNG de ${MIN_ASSET_SIZE}x${MIN_ASSET_SIZE} o más y se sube sola`,
+      );
+    }
   }
 
   const body = JSON.stringify({
-    image: `data:${mime};base64,${Buffer.from(buffer).toString('base64')}`,
+    image: `data:${mime};base64,${Buffer.from(payloadBuffer).toString('base64')}`,
     name,
     type: 1,
   });
@@ -306,7 +329,9 @@ export async function uploadApplicationAsset({ token, appId, name, buffer, mime,
   const finalName = String(created.name || name);
   if (!finalName) throw new Error('Discord confirmó la subida pero sin nombre de asset');
 
-  return { id: String(created.id || ''), name: finalName };
+  return scaled
+    ? { id: String(created.id || ''), name: finalName, scaled }
+    : { id: String(created.id || ''), name: finalName };
 }
 
 /* Borra el asset anterior cuando se reemplaza la imagen. Si falla no

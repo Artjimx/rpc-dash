@@ -520,6 +520,10 @@ async function registerImageAsset(client, value, appId, slot) {
       filename: image.filename,
     });
 
+    if (asset.scaled) {
+      log.ok(`Imagen ampliada automáticamente de ${asset.scaled.from} a ${asset.scaled.to} para cumplir el mínimo de Discord`);
+    }
+
     registry[key] = { name: asset.name, id: asset.id, at: new Date().toISOString() };
     saveAssetRegistry(registry);
 
