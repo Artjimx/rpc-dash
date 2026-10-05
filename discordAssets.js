@@ -21,6 +21,10 @@ const API_BASE = 'https://discord.com/api/v10';
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 20000;
 
+/* Discord exige que los assets de Rich Presence tengan al menos
+   512x512 px: por debajo los rechaza al subir. */
+export const MIN_ASSET_SIZE = 512;
+
 /* Discord rechaza assets grandes con mala calidad en la Presence.
    Avisamos, pero no bloqueamos: el Developer Portal acepta hasta
    varios MB. */
@@ -68,6 +72,62 @@ const MIME_EXT = {
   'image/webp': '.webp',
   'image/avif': '.avif',
 };
+
+/* ------------------------------------------------------------
+   Dimensiones (para avisar del mínimo 512x512 de Discord)
+   ------------------------------------------------------------ */
+
+function pngSize(b) {
+  if (b.length < 24) return null;
+  return { width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
+}
+
+function gifSize(b) {
+  if (b.length < 10) return null;
+  return { width: b.readUInt16LE(6), height: b.readUInt16LE(8) };
+}
+
+function jpegSize(b) {
+  let i = 2;
+  while (i < b.length - 9) {
+    if (b[i] !== 0xff) { i++; continue; }
+    const marker = b[i + 1];
+    /* SOF0..SOF15 salvo marcadores que no son SOF */
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      return { height: b.readUInt16BE(i + 5), width: b.readUInt16BE(i + 7) };
+    }
+    if (i + 4 > b.length) break;
+    i += 2 + b.readUInt16BE(i + 2);
+  }
+  return null;
+}
+
+function webpSize(b) {
+  if (b.length < 30) return null;
+  const chunk = b.toString('ascii', 12, 16);
+  if (chunk === 'VP8X') {
+    const w = (b[24] | (b[25] << 8) | (b[26] << 16)) + 1;
+    const h = (b[27] | (b[28] << 8) | (b[29] << 16)) + 1;
+    return { width: w, height: h };
+  }
+  if (chunk === 'VP8 ') {
+    return { width: b.readUInt16LE(26) & 0x3fff, height: b.readUInt16LE(28) & 0x3fff };
+  }
+  return null;
+}
+
+/** @returns {{width:number,height:number}|null} */
+export function imageSize(buffer, mime) {
+  try {
+    if (mime === 'image/png') return pngSize(buffer);
+    if (mime === 'image/gif') return gifSize(buffer);
+    if (mime === 'image/jpeg') return jpegSize(buffer);
+    if (mime === 'image/webp') return webpSize(buffer);
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 /* ------------------------------------------------------------
    Descarga de la imagen
@@ -147,35 +207,83 @@ export async function loadImageBuffer(value, { uploadDir } = {}) {
    Subida a la Discord Application
    ------------------------------------------------------------ */
 
+function describeErrors(payload) {
+  const errors = payload && payload.errors;
+  if (!errors || typeof errors !== 'object') return '';
+
+  const parts = [];
+  for (const [field, detail] of Object.entries(errors)) {
+    /* Discord anida los fallos de un campo en { _errors: [...] } */
+    const list = Array.isArray(detail && detail._errors)
+      ? detail._errors
+      : (Array.isArray(detail) ? detail : [detail]);
+
+    const msgs = list
+      .map((d) => {
+        if (d && typeof d === 'object') {
+          if (typeof d.message === 'string' && d.message) return d.message;
+          if (typeof d.code === 'string' && d.code) return d.code;
+          return JSON.stringify(d);
+        }
+        return String(d);
+      })
+      .filter(Boolean);
+
+    parts.push(`${field}: ${msgs.join(', ')}`);
+  }
+  return parts.join(' | ');
+}
+
 function friendlyError(status, payload) {
   const discordMessage = String((payload && payload.message) || '').trim();
+  const detail = describeErrors(payload);
+
+  if (status === 400) {
+    /* 50035 "Invalid Form Body" sin detalle:Discord no dice qué campo
+       falla, así que se da la pista más probable. */
+    if (!detail) return 'Discord rechazó el cuerpo de la petición (400/50035) sin detallar el campo';
+    return `Discord rechazó el asset (400/50035) — ${detail}`;
+  }
   if (status === 401) return 'el USER_TOKEN fue rechazado por Discord (401)';
   if (status === 403) {
     return 'tu cuenta no es propietaria de esa aplicación (403): el Application ID debe ser de una app creada por ti';
   }
   if (status === 404) return 'no existe esa aplicación (404): revisa el Application ID';
   if (status === 429) return 'Discord está limitando las subidas por ahora (429), reintenta en unos segundos';
-  if (status === 400 && discordMessage) return `Discord rechazó el asset: ${discordMessage}`;
   if (status >= 500) return `Discord devolvió un error ${status}, reintenta más tarde`;
-  return `Discord respondió ${status}${discordMessage ? `: ${discordMessage}` : ''}`;
+  return `Discord respondió ${status}${detail ? ` — ${detail}` : discordMessage ? `: ${discordMessage}` : ''}`;
 }
 
 /**
  * Sube una imagen a los Art Assets de la aplicación.
+ *
+ * Discord NO acepta multipart aquí: el endpoint de assets de Rich
+ * Presence es /oauth2/applications/{id}/assets y espera JSON con la
+ * imagen en base64. Con multipart devolvía 400 "Invalid Form Body".
+ *
  * @returns {Promise<{id: string, name: string}>} el asset creado
  */
 export async function uploadApplicationAsset({ token, appId, name, buffer, mime, filename }) {
   if (!token) throw new Error('no hay USER_TOKEN configurado');
   if (!isSnowflake(appId)) throw new Error('el Application ID no tiene un formato válido');
 
-  const form = new FormData();
-  form.append('name', name);
-  form.append('file', new Blob([buffer], { type: mime }), filename || 'imagen.png');
+  const size = imageSize(buffer, mime);
+  if (size && (size.width < MIN_ASSET_SIZE || size.height < MIN_ASSET_SIZE)) {
+    throw new Error(
+      `la imagen es de ${size.width}x${size.height} y Discord exige un mínimo de ${MIN_ASSET_SIZE}x${MIN_ASSET_SIZE} px`,
+    );
+  }
 
-  const res = await fetch(`${API_BASE}/applications/${appId}/assets`, {
+  const body = JSON.stringify({
+    image: `data:${mime};base64,${Buffer.from(buffer).toString('base64')}`,
+    name,
+    type: 1,
+  });
+
+  const res = await fetch(`${API_BASE}/oauth2/applications/${appId}/assets`, {
     method: 'POST',
-    headers: { Authorization: token },
-    body: form,
+    headers: { Authorization: token, 'Content-Type': 'application/json' },
+    body,
   });
 
   let payload = null;
@@ -207,7 +315,7 @@ export async function deleteApplicationAsset({ token, appId, assetId }) {
   if (!token || !assetId || !isSnowflake(appId)) return false;
   if (!/^[A-Za-z0-9._/-]{1,64}$/.test(assetId)) return false;
   try {
-    const res = await fetch(`${API_BASE}/applications/${appId}/assets/${encodeURIComponent(assetId)}`, {
+    const res = await fetch(`${API_BASE}/oauth2/applications/${appId}/assets/${encodeURIComponent(assetId)}`, {
       method: 'DELETE',
       headers: { Authorization: token },
     });
