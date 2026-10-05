@@ -150,124 +150,204 @@ body{
 
 /* ============================================================
    Previsualización pixel-perfect de la tarjeta de perfil de Discord
-   Los colores son los reales de Discord (#2b2d31 superficie,
-   #1e1f22 banner, #dbdee1 texto) para que se vea igual que en el
-   cliente, envuelto en el panel de cristal del dashboard.
+   Réplica del modal de perfil del cliente de escritorio: mismas
+   medidas, mismo apilado de capas y la misma paleta (#232428
+   superficie, #1e1f22 caja de actividad, #f2f5f8 texto).
    ============================================================ */
-.dfx{
-  --dc-surface:#2b2d31; --dc-raised:#1e1f22; --dc-text:#dbdee1;
-  --dc-dim:#949ba4; --dc-hover:#111214; --dc-link:#00a8fc;
-  --dc-radius:8px;
-  background:var(--dc-surface);border-radius:var(--dc-radius);
-  overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,.5);
-  font-family:'Inter',system-ui,sans-serif;
+:root{
+  --discord-card-bg:#232428;
+  --discord-inner-bg:#1e1f22;
+  --discord-text-primary:#f2f5f8;
+  --discord-text-secondary:#b5bac1;
+  --discord-header-muted:#949ba4;
+  --discord-twitch-purple:#9146ff;
+  --discord-btn-gray:#4e5058;
+  --discord-btn-gray-hover:#6d6f78;
+  --discord-btn-blurple:#5865f2;
+  --discord-btn-blurple-hover:#4752c4;
 }
+
+.dfx-card-container{
+  width:100%;max-width:350px;
+  background-color:var(--discord-card-bg);
+  border-radius:16px;overflow:hidden;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+  font-family:'Inter','Noto Sans','Helvetica Neue',Helvetica,Arial,sans-serif;
+  color:var(--discord-text-primary);
+}
+
+/* ---- Banner ---- */
 .dfx-banner{
-  height:118px;background:var(--dc-raised);position:relative;
+  height:105px;width:100%;
+  background-color:var(--discord-btn-blurple);
+  background-size:cover;background-position:center;
+  position:relative;
 }
-.dfx-banner.has-img{background-size:cover;background-position:center}
-.dfx-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.15),transparent 45%)}
-.dfx-top{position:relative;padding:0 16px}
-/* El avatar solapa el banner, como en Discord */
-.dfx-avatar-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:-46px}
-.dfx-avatar-box{position:relative;width:92px;height:92px;flex:none}
-.dfx-avatar{
-  width:80px;height:80px;border-radius:50%;object-fit:cover;
-  border:6px solid var(--dc-surface);background:#1e1f22;display:block;
+/* Velo superior: Discord oscurece un pelo el banner para que el avatar
+   destaque contra cualquier imagen. */
+.dfx-banner::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(0,0,0,.12),transparent 45%);
 }
-.dfx-avatar-fallback{
-  position:absolute;left:6px;top:6px;width:80px;height:80px;border-radius:50%;
-  display:none;place-items:center;font:700 30px 'Space Grotesk';color:rgba(255,255,255,.85);
+.dfx-banner.has-img{background-size:cover}
+
+/* ---- Insignias de la cuenta ---- */
+.dfx-badges-container{
+  position:absolute;top:12px;right:12px;z-index:2;
+  display:flex;align-items:center;gap:4px;
+  background:rgba(17,18,20,.6);border-radius:6px;padding:4px;
 }
-.dfx-avatar-box.no-img .dfx-avatar{display:none}
-.dfx-avatar-box.no-img .dfx-avatar-fallback{display:grid}
-.dfx-deco{position:absolute;inset:0;width:92px;height:92px;pointer-events:none}
-/* Badge de estado en la esquina inferior derecha del avatar */
-.dfx-presence{
-  position:absolute;right:0;bottom:0;width:26px;height:26px;border-radius:50%;
-  border:6px solid var(--dc-surface);background:#80848e;
-}
-.dfx-presence.online{background:#23a55a}
-.dfx-presence.idle{background:#f0b232}
-.dfx-presence.dnd{background:#f23f43}
-/* Invisible: círculo hueco, igual que Discord */
-.dfx-presence.invisible{background:transparent;box-shadow:inset 0 0 0 3px #80848e}
-.dfx-names{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:8px}
-.dfx-name{font-size:20px;font-weight:700;color:var(--dc-text);line-height:1.2}
-.dfx-name.has-accent{color:var(--accent-color)}
-.dfx-tag{font-size:14px;font-weight:500;color:var(--dc-dim)}
-.dfx-badges{display:flex;gap:5px;align-items:center;margin-top:6px;min-height:16px;flex-wrap:wrap}
 .dfx-badge{width:18px;height:18px;flex:none;position:relative}
 .dfx-badge svg{width:100%;height:100%;display:block}
 .dfx-badge:hover::after{
-  content:attr(data-name);position:absolute;top:130%;left:50%;transform:translateX(-50%);
-  background:#111214;color:var(--dc-text);font:500 11px/1 Inter;letter-spacing:0;
-  padding:6px 9px;border-radius:6px;white-space:nowrap;z-index:5;pointer-events:none;
+  content:attr(data-name);position:absolute;top:130%;right:0;
+  background:#111214;color:var(--discord-text-primary);
+  font:500 11px/1 Inter;letter-spacing:0;white-space:nowrap;
+  padding:6px 9px;border-radius:6px;z-index:6;pointer-events:none;
 }
-/* Custom status (burbuja del perfil) */
-.dfx-custom{
-  margin-top:10px;font-size:14px;color:var(--dc-text);display:flex;gap:8px;align-items:baseline;
-}
-.dfx-custom .cs-text{white-space:pre-wrap;word-break:break-word}
-.dfx-body{padding:14px 16px 16px}
-.dfx-custom.muted{color:var(--dc-dim)}
 
-/* ---- Tarjeta de actividad (Rich Presence) ---- */
-.dfx-card{
-  margin-top:14px;background:var(--dc-raised);border-radius:var(--dc-radius);
-  padding:14px;display:flex;gap:14px;flex-wrap:wrap;position:relative;
-  animation:cardGlow 4.5s ease-in-out infinite;
+/* ---- Cabecera y avatar ---- */
+.dfx-profile-header{padding:16px;position:relative}
+
+.dfx-avatar-wrapper{
+  position:absolute;top:-40px;left:16px;
+  width:80px;height:80px;border-radius:50%;
 }
-@keyframes cardGlow{0%,100%{box-shadow:none}50%{box-shadow:0 0 34px rgba(0,255,255,.13)}}
-.dfx-art{position:relative;width:86px;height:86px;flex:none}
-.dfx-large-wrap{width:100%;height:100%;border-radius:var(--dc-radius);overflow:hidden;background:#1e1f22;position:relative}
-.dfx-large{width:100%;height:100%;object-fit:cover;display:none}
-.dfx-ph{position:absolute;inset:0;display:grid;place-items:center;font-family:'Space Grotesk';font-size:30px;font-weight:700;color:#4e5865}
-.dfx-large-wrap.has-img .dfx-ph{display:none}
-.dfx-large-wrap.has-img .dfx-large{display:block}
-/* Hover sobre la imagen grande: Discord muestra el texto configurado */
+.dfx-avatar-img{
+  width:80px;height:80px;border-radius:50%;
+  border:6px solid var(--discord-card-bg);
+  object-fit:cover;display:block;background:#1e1f22;
+}
+/* Sin avatar, Discord pinta un degradado con la inicial. */
+.dfx-avatar-fallback{
+  position:absolute;inset:6px;border-radius:50%;
+  display:none;place-items:center;
+  font:700 28px 'Space Grotesk';color:rgba(255,255,255,.9);
+  background-size:cover;background-position:center;
+}
+.dfx-avatar-wrapper.no-img .dfx-avatar-img{display:none}
+.dfx-avatar-wrapper.no-img .dfx-avatar-fallback{display:grid}
+.dfx-avatar-decoration{
+  position:absolute;top:-6px;left:-6px;
+  width:92px;height:92px;pointer-events:none;
+}
+
+/* Punto de estado: 20px con borde de 4px del color de la tarjeta */
+.dfx-status-dot{
+  position:absolute;bottom:2px;right:2px;
+  width:20px;height:20px;border-radius:50%;
+  border:4px solid var(--discord-card-bg);
+  background:#80848e;
+}
+.dfx-status-dot.online{background:#23a55a}
+.dfx-status-dot.idle{background:#f0b232}
+.dfx-status-dot.dnd{background:#f23f43}
+/* Invisible: círculo hueco */
+.dfx-status-dot.invisible{background:transparent;box-shadow:inset 0 0 0 3px #80848e}
+
+/* ---- Identidad y estado personalizado ---- */
+.dfx-user-identity{margin-top:44px}
+.dfx-display-name{
+  font-size:20px;font-weight:700;line-height:24px;
+  color:var(--discord-text-primary);
+}
+.dfx-display-name.has-accent{color:var(--accent-color)}
+.dfx-username{font-size:14px;color:var(--discord-text-secondary)}
+
+.dfx-custom-status{
+  margin-top:8px;font-size:14px;color:#dbdee1;
+  display:flex;align-items:center;gap:6px;
+}
+.dfx-custom-status.muted{color:var(--discord-header-muted)}
+
+/* ---- Sección de actividad ---- */
+.dfx-activity-section{padding:0 16px 16px 16px}
+.dfx-activity-header{
+  font-size:12px;font-weight:700;letter-spacing:.02em;
+  color:var(--discord-header-muted);text-transform:uppercase;
+  margin-bottom:8px;
+}
+.dfx-activity-box{
+  background-color:var(--discord-inner-bg);
+  border-radius:12px;padding:12px;
+}
+.dfx-activity-content{display:flex;gap:12px;align-items:flex-start}
+
+/* ---- Assets ---- */
+.dfx-asset-wrapper{position:relative;flex-shrink:0}
+.dfx-large-wrap{
+  width:64px;height:64px;border-radius:8px;overflow:hidden;
+  background:#111214;position:relative;
+}
+.dfx-large-image{width:64px;height:64px;border-radius:8px;object-fit:cover;display:none}
+.dfx-large-ph{
+  position:absolute;inset:0;display:grid;place-items:center;
+  font:700 22px 'Space Grotesk';color:#4e5865;
+}
+.dfx-large-wrap.has-img .dfx-large-image{display:block}
+.dfx-large-wrap.has-img .dfx-large-ph{display:none}
+/* Discord enseña el texto de hover sobre la imagen grande */
 .dfx-large-wrap[data-hover]:hover::after{
   content:attr(data-hover);position:absolute;inset:0;
-  background:rgba(0,0,0,.82);color:var(--dc-text);
-  font:500 12px/1.3 Inter;padding:8px;display:grid;place-items:center;text-align:center;
+  background:rgba(0,0,0,.82);color:var(--discord-text-primary);
+  font:500 11px/1.3 Inter;padding:6px;display:grid;place-items:center;
+  text-align:center;
 }
-.dfx-small-wrap{position:absolute;right:-6px;bottom:-6px;width:34px;height:34px;border-radius:50%;background:var(--dc-raised);padding:3px}
-.dfx-small{width:100%;height:100%;border-radius:50%;object-fit:cover;background:#1e1f22;display:none}
-.dfx-small-wrap.has-img .dfx-small{display:block}
-/* Hover sobre la imagen pequeña */
+.dfx-small-wrap{
+  position:absolute;bottom:-4px;right:-4px;
+  width:22px;height:22px;border-radius:50%;
+  border:2px solid var(--discord-inner-bg);
+  background:#1e1f22;padding:2px;
+}
+.dfx-small-image{width:100%;height:100%;border-radius:50%;object-fit:cover;display:none}
+.dfx-small-wrap.has-img .dfx-small-image{display:block}
 .dfx-small-wrap[data-hover]:hover::after{
-  content:attr(data-hover);position:absolute;bottom:130%;left:50%;transform:translateX(-50%);
-  background:#111214;color:var(--dc-text);font:500 11px/1.3 Inter;
-  padding:6px 8px;border-radius:6px;width:max-content;max-width:150px;text-align:center;
+  content:attr(data-hover);position:absolute;bottom:130%;right:0;
+  background:#111214;color:var(--discord-text-primary);
+  font:500 11px/1.3 Inter;padding:6px 8px;border-radius:6px;
+  width:max-content;max-width:150px;text-align:center;z-index:4;
 }
-/* El cuerpo reserva el ancho de la imagen menos el hueco, así los
-   botones caen solos en su propia línea, como en Discord. */
-.dfx-card-body{flex:1 1 calc(100% - 100px);min-width:0;display:flex;flex-direction:column;gap:2px}
-.dfx-app{font-size:15px;font-weight:600;color:var(--dc-text);line-height:1.3}
-.dfx-app .tw{color:#9146ff;font-weight:700}
-.dfx-details{font-size:14px;font-weight:600;color:var(--dc-text);line-height:1.35}
-.dfx-state{font-size:14px;color:var(--dc-text);line-height:1.35;white-space:pre-wrap}
-.dfx-party{font-size:14px;color:var(--dc-text);margin-top:2px}
-.dfx-party.empty{color:var(--dc-dim)}
-.dfx-time{font-size:13px;color:var(--dc-dim);margin-top:3px;font-variant-numeric:tabular-nums}
-.dfx-empty{font-size:14px;color:var(--dc-dim)}
-.dfx-buttons{display:flex;gap:8px;margin-top:2px;flex-wrap:wrap;flex-basis:100%}
+
+/* ---- Textos: siempre truncados para no ensanchar la tarjeta ---- */
+.dfx-activity-details{flex:1;min-width:0;font-size:13px;line-height:16px}
+.dfx-truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dfx-app-name{font-weight:700;color:var(--discord-text-primary)}
+.dfx-state-text{color:#dbdee1}
+.dfx-party{color:#dbdee1}
+.dfx-party.empty{display:none}
+.dfx-timer{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:12px;margin-top:4px;color:#dbdee1;
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---- Distintivo morado de streaming ---- */
+.dfx-twitch-badge{
+  display:flex;align-items:center;gap:6px;margin-bottom:8px;
+  color:var(--discord-twitch-purple);
+}
+.dfx-twitch-badge .tw-logo{width:14px;height:14px;flex:none}
+.dfx-twitch-badge .tw-host{
+  font-weight:500;font-size:12px;color:var(--discord-text-secondary);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* ---- Botones de acción, a ancho completo ---- */
+.dfx-button-group{margin-top:12px;display:flex;flex-direction:column;gap:8px}
 .dfx-btn{
-  font-size:13px;font-weight:500;text-decoration:none;color:var(--dc-text);
-  background:#313338;border:0;border-radius:var(--dc-radius);padding:8px 16px;
-  transition:background .15s;
+  width:100%;padding:7px 16px;border-radius:4px;
+  font-size:14px;font-weight:500;border:none;cursor:pointer;
+  background-color:var(--discord-btn-gray);color:#ffffff;
+  font-family:inherit;text-decoration:none;text-align:center;
+  transition:background-color .15s ease;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-.dfx-btn:hover{background:var(--dc-hover)}
+.dfx-btn:hover{background-color:var(--discord-btn-gray-hover)}
+.dfx-btn:active{transform:scale(.99)}
+.dfx-btn-twitch{background-color:var(--discord-twitch-purple)}
+.dfx-btn-twitch:hover{background-color:#7d2be8}
 
-/* Botón "Seguir viendo" que Discord pone en streaming */
-.dfx-twitch{
-  display:inline-flex;align-items:center;gap:6px;background:#9146ff;color:#fff;
-  font:700 11px/1 Inter;letter-spacing:.04em;padding:5px 9px;border-radius:5px;
-  margin-bottom:8px;width:fit-content;
-}
-.dfx-twitch .tw-logo{width:13px;height:13px;flex:none}
-.dfx-twitch .live{font-weight:500;opacity:.92}
-
+/* ---- Nota de estado del panel ---- */
 .dfx-note{
   margin-top:10px;font-size:10px;color:var(--text-3);letter-spacing:.03em;
   display:flex;align-items:center;gap:7px;flex-wrap:wrap;
@@ -275,7 +355,6 @@ body{
 .dfx-note .dot{width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);flex:none}
 .dfx-note.err .dot{background:var(--danger);box-shadow:0 0 8px var(--danger)}
 .dfx-note.err{color:#ff8c8c}
-
 .divider{height:1px;background:var(--stroke);margin:4px 0 16px}
 
 /* ---------- Formularios ---------- */
@@ -791,66 +870,71 @@ body{
        Se queda pegada al hacer scroll en escritorio y se va debajo
        en móvil.
        ============================================================ -->
-  <aside class="preview-col">
+<aside class="preview-col">
     <section class="glass panel">
       <div class="panel-head">
         <span class="kicker">Perfil en Discord</span>
-        <span class="tag" id="dfxWho">—</span>
+        <span class="tag" id="dfx-who">—</span>
       </div>
 
-      <div class="dfx" id="dfx">
-        <!-- Banner -->
-        <div class="dfx-banner" id="dfxBanner"></div>
-
-        <div class="dfx-top">
-          <!-- Avatar + estado -->
-          <div class="dfx-avatar-row">
-            <div class="dfx-avatar-box" id="dfxAvatarBox">
-              <img class="dfx-avatar" id="dfxAvatar" alt="">
-              <div class="dfx-avatar-fallback" id="dfxAvatarFallback"></div>
-              <img class="dfx-deco" id="dfxDeco" alt="" hidden>
-              <div class="dfx-presence invisible" id="dfxPresence"></div>
-            </div>
-          </div>
-
-          <!-- Nombre, tag e insignias -->
-          <div class="dfx-names">
-            <span class="dfx-name" id="dfxName">Conectando…</span>
-            <span class="dfx-tag" id="dfxTag"></span>
-          </div>
-          <div class="dfx-badges" id="dfxBadges"></div>
+      <div class="dfx-card-container">
+        <!-- Banner + insignias de la cuenta -->
+        <div class="dfx-banner" id="dfx-banner">
+          <div class="dfx-badges-container" id="dfx-badges"></div>
         </div>
 
-        <div class="dfx-body">
-          <!-- Custom status (burbuja del perfil) -->
-          <div class="dfx-custom muted" id="dfxCustom"><span class="cs-text">Sin estado personalizado</span></div>
+        <!-- Cabecera: avatar sobre el banner, identidad y custom status -->
+        <div class="dfx-profile-header">
+          <div class="dfx-avatar-wrapper" id="dfx-avatar-wrapper">
+            <img class="dfx-avatar-img" id="dfx-avatar" alt="" hidden>
+            <div class="dfx-avatar-fallback" id="dfx-avatar-fallback"></div>
+            <img class="dfx-avatar-decoration" id="dfx-avatar-decoration" alt="" hidden>
+            <div class="dfx-status-dot invisible" id="dfx-status-dot"></div>
+          </div>
 
-          <!-- Tarjeta de actividad -->
-          <div class="dfx-card">
-            <div class="dfx-art">
-              <div class="dfx-large-wrap" id="dfxLargeWrap">
-                <img class="dfx-large" id="dfxLarge" alt="">
-                <div class="dfx-ph">P</div>
+          <div class="dfx-user-identity">
+            <div class="dfx-display-name" id="dfx-display-name">Conectando…</div>
+            <div class="dfx-username dfx-truncate" id="dfx-username"></div>
+          </div>
+
+          <div class="dfx-custom-status muted dfx-truncate" id="dfx-custom-status"></div>
+        </div>
+
+        <!-- Actividad / Rich Presence -->
+        <div class="dfx-activity-section">
+          <div class="dfx-activity-header" id="dfx-activity-title">ACTIVIDAD</div>
+
+          <div class="dfx-activity-box">
+            <div class="dfx-activity-content">
+              <div class="dfx-asset-wrapper">
+                <div class="dfx-large-wrap" id="dfx-large-wrap">
+                  <img class="dfx-large-image" id="dfx-large-image" alt="" hidden>
+                  <div class="dfx-large-ph" id="dfx-large-ph">P</div>
+                </div>
+                <div class="dfx-small-wrap" id="dfx-small-wrap">
+                  <img class="dfx-small-image" id="dfx-small-image" alt="" hidden>
+                </div>
               </div>
-              <div class="dfx-small-wrap" id="dfxSmallWrap"><img class="dfx-small" id="dfxSmall" alt=""></div>
+
+              <div class="dfx-activity-details">
+                <div class="dfx-twitch-badge" id="dfx-twitch" hidden></div>
+                <div class="dfx-app-name dfx-truncate" id="dfx-app-name">Sin actividad</div>
+                <div class="dfx-state-text dfx-truncate" id="dfx-details"></div>
+                <div class="dfx-state-text dfx-truncate" id="dfx-state"></div>
+                <div class="dfx-party dfx-truncate" id="dfx-party"></div>
+                <div class="dfx-timer" id="dfx-timer" hidden></div>
+              </div>
             </div>
-            <div class="dfx-card-body">
-              <div id="dfxTwitch"></div>
-              <div class="dfx-app" id="dfxApp">Playing PRESENCE</div>
-              <div class="dfx-details" id="dfxDetails">Sin presencia activa</div>
-              <div class="dfx-state" id="dfxState"></div>
-              <div class="dfx-party empty" id="dfxParty"></div>
-              <div class="dfx-time" id="dfxTime"></div>
-            </div>
-            <div class="dfx-buttons" id="dfxButtons"></div>
+
+            <!-- Botones de acción a ancho completo -->
+            <div class="dfx-button-group" id="dfx-button-group"></div>
           </div>
         </div>
       </div>
 
-      <div class="dfx-note" id="dfxNote"><span class="dot"></span><span id="dfxNoteText">Perfil sincronizado con Discord.</span></div>
+      <div class="dfx-note" id="dfx-note"><span class="dot"></span><span id="dfx-note-text">Perfil sincronizado con Discord.</span></div>
     </section>
   </aside>
-
 </main>
 
 <div class="toasts" id="toasts"></div>
@@ -1712,14 +1796,16 @@ function setConn(connected, error, verified) {
 
   /* ============================================================
      Tarjeta de perfil pixel-perfect.
+/* ============================================================
+     Tarjeta de perfil pixel-perfect.
 
-     Reproduce lo que Discord pinta de verdad: banner, avatar con
-     insignia de estado, nombre de display con su color de acento,
-     insignias de la cuenta, burbuja de custom status y la tarjeta de
-     actividad con hover de imágenes, temporizadores en vivo, botones y
-     el distintivo morado de Twitch en streaming.
+     Réplica del modal de perfil del cliente de escritorio de Discord:
+     banner, avatar con punto de estado, insignias de la cuenta,
+     nombre de display con su color de acento, burbuja de custom status
+     y la tarjeta de actividad con hover de imágenes, temporizador en
+     HH:MM:SS, botones a ancho completo y el distintivo morado de
+     streaming.
      ============================================================ */
-  var TWITCH_PURPLE = '#9146ff';
 
   /* Iconos de insignia dibujados a mano: Discord no expone la URL del
      SVG de cada insignia, así que se aproximan los glifos reales. */
@@ -1750,12 +1836,22 @@ function setConn(connected, error, verified) {
     });
   }
 
-  /* Avatar y banner vienen de la API de Discord; si el usuario escribe
-     algo raro en la URL se escapa siempre antes de tocar el DOM. */
+  /* Avatar, banner y decoración llegan de la API de Discord: si el valor
+     fuera raro, se descarta antes de tocar el DOM. */
   function safeUrl(u) {
     var v = String(u || '').trim();
     if (!/^https?:\/\//i.test(v)) return '';
     return v.replace(/"/g, '%22');
+  }
+
+  /* Pone (o quita) el src de una imagen según haya URL o no. */
+  function setImg(id, url) {
+    var el = $(id);
+    if (!el) return null;
+    if (url) { el.src = url; el.hidden = false; return el; }
+    el.removeAttribute('src');
+    el.hidden = true;
+    return el;
   }
 
   /* ============================================================
@@ -1786,95 +1882,101 @@ function setConn(connected, error, verified) {
       .catch(function (e) { renderProfile(null, 'No se pudo contactar al servidor: ' + e.message, true); });
   }
 
-  /* La burbuja de custom status se pinta en el perfil; se actualiza sola
-     mientras el usuario escribe. */
+  /* La burbuja de custom status se pinta en el perfil y se actualiza
+     mientras el usuario escribe en los campos del panel 02. */
   function renderCustomStatusLine() {
-    var el = $('dfxCustom');
+    var el = $('dfx-custom-status');
     if (!el) return;
     var emoji = String(($('psEmoji') && $('psEmoji').value) || '').trim();
     var text = String(($('psText') && $('psText').value) || '').trim();
     var full = (emoji ? emoji + ' ' : '') + text;
-    var txt = el.querySelector('.cs-text');
-    if (!txt) return;
     if (full) {
       el.classList.remove('muted');
-      txt.textContent = full;
+      el.textContent = full;
+      el.title = full;
     } else {
       el.classList.add('muted');
-      txt.textContent = 'Sin estado personalizado';
+      el.textContent = 'Sin estado personalizado';
+      el.title = '';
     }
   }
 
   function renderProfile(p, noteText, noteError) {
-    var note = $('dfxNote');
+    var note = $('dfx-note');
     if (note) note.classList.toggle('err', !!noteError);
-    var noteEl = $('dfxNoteText');
+    var noteEl = $('dfx-note-text');
     if (noteEl) noteEl.textContent = noteText;
 
     if (!p) {
-      $('dfxWho').textContent = '—';
-      $('dfxName').textContent = 'Sin perfil';
-      $('dfxTag').textContent = '';
-      $('dfxBadges').innerHTML = '';
+      $('dfx-who').textContent = '—';
+      $('dfx-display-name').textContent = 'Sin perfil';
+      $('dfx-username').textContent = '';
+      $('dfx-badges').innerHTML = '';
       return;
     }
 
-    $('dfxWho').textContent = p.username || '—';
-    $('dfxName').textContent = p.displayName || p.username || '—';
-    /* El color de acento solo se aplica si la cuenta lo tiene. */
-    var nameEl = $('dfxName');
+    $('dfx-who').textContent = p.username || '—';
+    var nameEl = $('dfx-display-name');
+    nameEl.textContent = p.displayName || p.username || '—';
+
+    /* El color de acento solo existe si la cuenta lo tiene definido. */
     if (p.accentColor !== null && p.accentColor !== undefined) {
       var hex = '#' + (Number(p.accentColor) >>> 0).toString(16).padStart(6, '0');
       nameEl.classList.add('has-accent');
       nameEl.style.setProperty('--accent-color', hex);
     } else {
       nameEl.classList.remove('has-accent');
+      nameEl.style.removeProperty('--accent-color');
     }
-    $('dfxTag').textContent = p.legacyTag || (p.username ? '@' + p.username : '');
 
+    var tag = p.legacyTag || (p.username ? '@' + p.username : '');
+    var userEl = $('dfx-username');
+    userEl.textContent = tag;
+    /* Discord muestra el tag completo; el title lo revela si se corta. */
+    userEl.title = tag;
+
+    /* Avatar: imagen si la hay, o degradado con la inicial. */
     var avatar = safeUrl(p.avatar);
-    var box = $('dfxAvatarBox');
-    var img = $('dfxAvatar');
-    var fb = $('dfxAvatarFallback');
+    var wrapper = $('dfx-avatar-wrapper');
+    var fb = $('dfx-avatar-fallback');
     if (avatar) {
-      img.src = avatar;
-      box.classList.remove('no-img');
+      setImg('dfx-avatar', avatar);
+      wrapper.classList.remove('no-img');
       fb.textContent = '';
     } else {
-      img.removeAttribute('src');
-      box.classList.add('no-img');
-      /* Sin avatar, Discord pinta un degradado con la inicial. */
+      setImg('dfx-avatar', '');
+      wrapper.classList.add('no-img');
       fb.style.backgroundImage = p.avatarFallback || '';
       fb.textContent = (p.displayName || p.username || '?').charAt(0).toUpperCase();
     }
 
-    var deco = safeUrl(p.avatarDecoration);
-    var decoImg = $('dfxDeco');
-    if (deco) { decoImg.src = deco; decoImg.hidden = false; } else { decoImg.hidden = true; }
+    setImg('dfx-avatar-decoration', safeUrl(p.avatarDecoration));
 
+    /* Banner: con imagen, con el color de respaldo, o el azul de Discord. */
+    var bannerEl = $('dfx-banner');
     var banner = safeUrl(p.banner);
-    var bannerEl = $('dfxBanner');
     if (banner) {
       bannerEl.style.backgroundImage = 'url("' + banner + '")';
       bannerEl.classList.add('has-img');
+      bannerEl.style.backgroundColor = '';
     } else {
       bannerEl.style.backgroundImage = '';
       bannerEl.classList.remove('has-img');
-      /* Discord usa un morado liso cuando no hay banner. */
-      bannerEl.style.background = p.bannerFallback || '#4e2a8a';
+      bannerEl.style.backgroundColor = p.bannerFallback || '';
     }
 
     var badges = Array.isArray(p.badges) ? p.badges : [];
-    $('dfxBadges').innerHTML = badges.map(function (b) {
+    $('dfx-badges').innerHTML = badges.map(function (b) {
       return '<span class="dfx-badge" data-name="' + esc(b.name) + '" title="' + esc(b.name) + '">' + badgeIcon(b.name) + '</span>';
     }).join('');
   }
 
+  /* Punto de estado del avatar. */
   function setPresence(status) {
-    var el = $('dfxPresence');
+    var el = $('dfx-status-dot');
     if (!el) return;
     var s = ['online', 'idle', 'dnd', 'invisible'].indexOf(status) >= 0 ? status : 'invisible';
-    el.className = 'dfx-presence ' + s;
+    el.className = 'dfx-status-dot ' + s;
   }
 
   /* ---------------- Tarjeta de preview ---------------- */
@@ -1884,55 +1986,56 @@ function setConn(connected, error, verified) {
 
     var app = String(a.name || a.applicationId || state.settings.applicationId || 'PRESENCE');
     var typeLabel = TYPE_LABELS[a.type] || 'Playing';
-    var isStream = typeLabel === 'Streaming';
+    /* El backend envía el tipo como texto; el 1 es STREAMING. */
+    var isStream = typeLabel === 'Streaming' || a.type === 'streaming' || a.type === 1;
+    var isTwitch = /twitch/i.test(app) || /twitch\.tv/i.test(String(a.streamUrl || ''));
 
-    /* Discord pinta el nombre de la app; si es Twitch, morado. */
-    var appEl = $('dfxApp');
-    if (/twitch/i.test(app) || /twitch/i.test(a.streamUrl || '')) {
-      appEl.innerHTML = '<span class="tw">Streaming ' + esc(app) + '</span>';
-    } else {
-      appEl.textContent = typeLabel + ' ' + app;
-    }
+    /* Cabecera de la sección: Discord cambia el rótulo según el tipo. */
+    $('dfx-activity-title').textContent = isStream ? 'TRANSMITIENDO EN VIVO' : 'ACTIVIDAD';
 
-    var ph = $('dfxLargeWrap').querySelector('.dfx-ph');
+    $('dfx-app-name').textContent = isStream
+      ? 'En directo ' + app
+      : typeLabel + ' ' + app;
+    $('dfx-app-name').title = $('dfx-app-name').textContent;
+
+    var ph = $('dfx-large-ph');
     if (ph) ph.textContent = (a.details || app).charAt(0).toUpperCase();
 
-    /* Imagen grande + texto de hover (Discord lo muestra al pasar el ratón). */
-    var lw = $('dfxLargeWrap');
+    /* Imagen grande con su texto de hover. */
+    var lw = $('dfx-large-wrap');
     if (a.largeImageUrl) {
-      $('dfxLarge').onerror = function () { lw.classList.remove('has-img'); lw.removeAttribute('data-hover'); };
-      $('dfxLarge').src = a.largeImageUrl;
+      var large = setImg('dfx-large-image', a.largeImageUrl);
+      large.onerror = function () { lw.classList.remove('has-img'); lw.removeAttribute('data-hover'); };
       lw.classList.add('has-img');
       if (a.largeImageText) lw.setAttribute('data-hover', a.largeImageText);
       else lw.removeAttribute('data-hover');
     } else {
-      $('dfxLarge').onerror = null;
-      $('dfxLarge').removeAttribute('src');
+      setImg('dfx-large-image', '');
       lw.classList.remove('has-img');
       lw.removeAttribute('data-hover');
     }
 
-    var sw = $('dfxSmallWrap');
+    /* Icono pequeño superpuesto. */
+    var sw = $('dfx-small-wrap');
     if (a.smallImageUrl) {
-      $('dfxSmall').onerror = function () { sw.classList.remove('has-img'); sw.removeAttribute('data-hover'); };
-      $('dfxSmall').src = a.smallImageUrl;
+      var small = setImg('dfx-small-image', a.smallImageUrl);
+      small.onerror = function () { sw.classList.remove('has-img'); sw.removeAttribute('data-hover'); };
       sw.classList.add('has-img');
       if (a.smallImageText) sw.setAttribute('data-hover', a.smallImageText);
       else sw.removeAttribute('data-hover');
     } else {
-      $('dfxSmall').onerror = null;
-      $('dfxSmall').removeAttribute('src');
+      setImg('dfx-small-image', '');
       sw.classList.remove('has-img');
       sw.removeAttribute('data-hover');
     }
 
-    $('dfxDetails').textContent = a.details || 'Sin presencia activa';
-    $('dfxState').textContent = a.state || '';
+    $('dfx-details').textContent = a.details || 'Sin presencia activa';
+    $('dfx-state').textContent = a.state || '';
 
-    var party = $('dfxParty');
+    var party = $('dfx-party');
     if (a.partySize && a.partyMax) {
       party.classList.remove('empty');
-      party.textContent = a.partySize + ' de ' + a.partyMax + (a.partyId ? '' : '');
+      party.textContent = a.partySize + ' de ' + a.partyMax;
     } else if (a.partyId) {
       party.classList.remove('empty');
       party.textContent = 'En un grupo';
@@ -1941,45 +2044,56 @@ function setConn(connected, error, verified) {
       party.textContent = '';
     }
 
-    /* Distintivo morado de streaming, como el de Discord. */
-    var tw = $('dfxTwitch');
-    if (isStream && a.streamUrl) {
+    /* Distintivo morado: solo si de verdad es Twitch. */
+    var tw = $('dfx-twitch');
+    if (isStream && isTwitch) {
+      /* Discord rotula el distintivo con el canal, no con el dominio. */
       var host = '';
-      try { host = new URL(a.streamUrl).hostname; } catch (e) { host = ''; }
-      tw.innerHTML = '<span class="dfx-twitch">' +
-        '<svg class="tw-logo" viewBox="0 0 24 24" fill="#fff"><path d="M4.3 0 1 3.9v5.4h3.6V21l4.6-4.4h3.5L20.6 12V0H4.3Zm14.4 11.3-2.8 2.8h-3.3l-2.7 2.6v-2.6H6.7V1.8h12v9.5Z"/><path d="M14.8 5.5h2v5.4h-2V5.5Zm-5 0h2v5.4h-2V5.5Z"/></svg>' +
-        '<span>En directo</span>' + (host ? '<span class="live">' + esc(host) + '</span>' : '') + '</span>';
+      try {
+        var u = new URL(a.streamUrl);
+        host = u.pathname.replace(/^\/+|\/+$/g, '').split('/')[0] || u.hostname.replace(/^www\./, '');
+      } catch (e) { host = ''; }
+      tw.hidden = false;
+      tw.innerHTML =
+        '<svg class="tw-logo" viewBox="0 0 24 24" fill="currentColor"><path d="M4.3 0 1 3.9v5.4h3.6V21l4.6-4.4h3.5L20.6 12V0H4.3Zm14.4 11.3-2.8 2.8h-3.3l-2.7 2.6v-2.6H6.7V1.8h12v9.5Z"/><path d="M14.8 5.5h2v5.4h-2V5.5Zm-5 0h2v5.4h-2V5.5Z"/></svg>' +
+        '<span class="tw-host">' + esc(host || 'twitch') + '</span>';
     } else {
+      tw.hidden = true;
       tw.innerHTML = '';
     }
 
-    var box = $('dfxButtons');
+    /* Botones a ancho completo, en morado si es streaming de Twitch. */
+    var box = $('dfx-button-group');
     box.innerHTML = '';
     var btns = [];
     if (a.button1Text && normalizeUrl(a.button1Url)) btns.push([a.button1Text, normalizeUrl(a.button1Url)]);
     if (a.button2Text && normalizeUrl(a.button2Url)) btns.push([a.button2Text, normalizeUrl(a.button2Url)]);
     for (var i = 0; i < btns.length; i++) {
       var el = document.createElement('a');
-      el.className = 'dfx-btn';
+      el.className = 'dfx-btn' + (isTwitch ? ' dfx-btn-twitch' : '');
       el.textContent = btns[i][0];
       el.href = btns[i][1];
       el.target = '_blank';
       el.rel = 'noopener noreferrer';
+      el.title = btns[i][0];
       box.appendChild(el);
     }
+
     tickElapsed();
   }
 
   function renderPreview() {
     if (!$('inEnabled').checked) {
       state.cardActivity = null;
-      $('dfxDetails').textContent = 'RPC personalizado desactivado';
-      $('dfxState').textContent = '';
-      $('dfxParty').textContent = '';
-      $('dfxParty').classList.add('empty');
-      $('dfxTwitch').innerHTML = '';
-      $('dfxButtons').innerHTML = '';
-      $('dfxTime').textContent = '';
+      $('dfx-app-name').textContent = 'RPC personalizado desactivado';
+      $('dfx-details').textContent = '';
+      $('dfx-state').textContent = '';
+      $('dfx-party').textContent = '';
+      $('dfx-party').classList.add('empty');
+      $('dfx-twitch').hidden = true;
+      $('dfx-button-group').innerHTML = '';
+      $('dfx-timer').hidden = true;
+      $('dfx-timer').textContent = '';
       return;
     }
     renderCard(readAdvanced());
@@ -1988,27 +2102,41 @@ function setConn(connected, error, verified) {
   function renderRpc(rpcState) {
     if (rpcState && rpcState.activity) renderCard(rpcState.activity);
     else renderPreview();
-    /* El estado online real se refleja en el puntito del avatar. */
+    /* El estado real de la conexión se refleja en el punto del avatar. */
     if (rpcState && rpcState.connected) setPresence('online');
   }
 
-  /* Los temporizadores avanzan solos, como los de Discord. */
+  /* HH:MM:SS, el formato que usa Discord en su tarjeta. */
+  function fmtHMS(totalSeconds) {
+    var s = Math.max(0, Math.floor(totalSeconds));
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    var r = s % 60;
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r;
+  }
+
+  /* Los temporizadores avanzan solos cada segundo, como los de Discord. */
   function tickElapsed() {
     var a = state.cardActivity;
-    var el = $('dfxTime');
+    var el = $('dfx-timer');
     if (!el) return;
     var now = Date.now();
     var start = a && a.startTimestamp ? new Date(a.startTimestamp).getTime() : 0;
     var end = a && a.endTimestamp ? new Date(a.endTimestamp).getTime() : 0;
+
     if (end > now) {
-      el.textContent = 'Termina en ' + fmtT(Math.max(0, Math.ceil((end - now) / 1000)));
+      var left = Math.ceil((end - now) / 1000);
+      el.hidden = false;
+      el.textContent = fmtHMS(left) + ' restante';
     } else if (start) {
-      el.textContent = fmtT(Math.max(0, Math.floor((now - start) / 1000))) + ' transcurrido';
+      var gone = Math.floor((now - start) / 1000);
+      el.hidden = false;
+      el.textContent = fmtHMS(gone) + ' transcurrido';
     } else {
+      el.hidden = true;
       el.textContent = '';
     }
   }
-
   /* ---------------- Perfiles (localStorage) ---------------- */
   function loadProfiles() {
     return lsGet(LS.profiles, []);
