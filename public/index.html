@@ -131,16 +131,21 @@ body{
   max-width:1380px;margin:22px auto 60px;padding:0 26px;
   display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:22px;align-items:start;
 }
+.layout > section:nth-of-type(1){grid-column:1;grid-row:1}
+.layout > section:nth-of-type(2){grid-column:1;grid-row:2}
+.layout > section.wide{grid-column:1;grid-row:3}
 .panel{padding:24px;animation:fadeUp .55s ease both}
 .panel:nth-child(2){animation-delay:.1s}
 .panel.wide{grid-column:1/-1;animation-delay:.2s}
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 
 /* La columna del preview: sticky en escritorio, normal en móvil */
-.preview-col{position:sticky;top:22px;display:flex;flex-direction:column;gap:22px;min-width:0}
+.preview-col{position:sticky;top:22px;grid-column:2;grid-row:1 / span 3;display:flex;flex-direction:column;gap:22px;min-width:0}
 @media (max-width:1080px){
   .layout{grid-template-columns:minmax(0,1fr)}
-  .preview-col{position:static}
+  .layout > section:nth-of-type(1),.layout > section:nth-of-type(2),.layout > section.wide,
+  .preview-col{grid-column:1;grid-row:auto}
+  .preview-col{position:static;order:-1}
 }
 
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
@@ -285,6 +290,11 @@ body{
   font:700 22px 'Space Grotesk';color:#4e5865;
 }
 .dfx-large-wrap.has-img .dfx-large-image{display:block}
+.dfx-large-wrap.image-error::after{
+  content:'Imagen no disponible';position:absolute;inset:0;display:grid;place-items:center;
+  padding:7px;text-align:center;background:rgba(17,18,20,.92);color:#ffb4bd;
+  font-size:9px;line-height:1.2;font-weight:600;
+}
 .dfx-large-wrap.has-img .dfx-large-ph{display:none}
 /* Discord enseña el texto de hover sobre la imagen grande */
 .dfx-large-wrap[data-hover]:hover::after{
@@ -415,6 +425,35 @@ body{
 .btn.danger:hover{border-color:#ff6b6b;color:#ff8c8c;box-shadow:0 0 20px rgba(255,107,107,.25)}
 .btn:disabled{opacity:.5;cursor:wait;transform:none!important}
 .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+
+/* ---------- Accesibilidad y estados de interacción ---------- */
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,
+[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.btn:active,.chip button:active,.dfx-btn:active{transform:translateY(0) scale(.98)}
+.live-tag{transition:color .25s,text-shadow .25s,opacity .25s}
+.live-tag.is-offline{color:var(--text-3);text-shadow:none;opacity:.8}
+.live-tag.is-offline .led{background:#4a4d5a;box-shadow:none;animation:none}
+@media (max-width:960px){
+  .topbar{margin:14px 14px 0;padding:14px 16px}
+  .layout{padding:0 14px;margin-top:14px}
+  .panel{padding:20px}
+}
+@media (max-width:620px){
+  .topbar{align-items:flex-start}
+  .top-right{flex-direction:column;align-items:flex-end;gap:8px}
+  .brand-text p{letter-spacing:.18em}
+  .actions{flex-direction:column-reverse;align-items:stretch}
+  .actions .btn{width:100%}
+  .profiles-head{grid-template-columns:1fr}
+  .profiles-head .btn{width:100%}
+  .switch-row{align-items:flex-start;flex-direction:column}
+  .field-grid{gap:0}
+  .toasts{right:12px;left:12px;bottom:12px;align-items:stretch}
+  .toast{max-width:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
+}
 
 /* ============================================================
    Editor de recorte (calibración manual de la imagen)
@@ -605,7 +644,7 @@ body{
   <section class="glass panel">
     <div class="panel-head">
       <span class="kicker">01 / Presencia en Discord</span>
-      <span class="live-tag"><span class="led on"></span> LIVE</span>
+      <span class="live-tag is-offline" id="rpcLiveTag"><span class="led"></span> OFFLINE</span>
     </div>
 
     <div class="divider"></div>
@@ -937,7 +976,7 @@ body{
   </aside>
 </main>
 
-<div class="toasts" id="toasts"></div>
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="true"></div>
 
 <!-- ============================================================
      Editor de recorte: al elegir una imagen se abre esta UI para
@@ -1033,6 +1072,7 @@ body{
     profileRotation: { active: false, seconds: 60, current: null, total: 0 },
     cardActivity: null
   };
+  var formDirty = false;
 
   function lsGet(k, d) {
     try {
@@ -1557,8 +1597,13 @@ body{
       if (data.stateRotation) state.stateRotation = data.stateRotation;
       if (data.profileRotation) state.profileRotation = data.profileRotation;
       var savedForm = lsGet(LS.form, null);
-if (savedForm && typeof savedForm === 'object') fillForm(savedForm);
-    else fillSettings(state.settings);
+      /* Si el usuario ya empezó a editar mientras Socket.io arrancaba,
+         no le pisamos el borrador con la configuración del servidor. */
+      if (!formDirty) {
+        if (savedForm && typeof savedForm === 'object') fillForm(savedForm);
+        else fillSettings(state.settings);
+        formDirty = false;
+      }
     refreshAssetHints();
       renderRpc(state.rpc);
       updateRotationUI();
@@ -1629,6 +1674,7 @@ setConn(s.connected, s.error, s.verified);
 
 function setConn(connected, error, verified) {
           var pill = $('connPill');
+          var liveTag = $('rpcLiveTag');
           pill.className = 'conn-pill';
           pill.classList.toggle('conn-live', !!connected);
           pill.classList.toggle('conn-error', !!error && !connected);
@@ -1640,8 +1686,14 @@ function setConn(connected, error, verified) {
             $('connText').textContent = 'ERROR';
             pill.title = 'El paquete de presencia esta incompleto (falta session_id). Discord no lo mostrara.';
           } else {
-            $('connText').textContent = connected ? 'LIVE' : (error ? 'Sin conexi�n' : 'Desconectado');
+            $('connText').textContent = connected ? 'LIVE' : (error ? 'Sin conexión' : 'Desconectado');
             pill.title = error || '';
+          }
+          if (liveTag) {
+            var live = !!connected && !broken;
+            liveTag.classList.toggle('is-offline', !live);
+            liveTag.querySelector('.led').classList.toggle('on', live);
+            liveTag.lastChild.textContent = live ? ' LIVE' : (broken ? ' ERROR' : ' OFFLINE');
           }
         }
 
@@ -1764,6 +1816,8 @@ function setConn(connected, error, verified) {
     var platform = $('inPlatform').value;
     var btnPlatforms = ['desktop', 'embedded', 'android', 'ios'];
 
+    if (Boolean(b1t) !== Boolean(b1u)) msgs.push('Botón 1: completa el texto y la URL; si falta uno, Discord lo omitirá.');
+    if (Boolean(b2t) !== Boolean(b2u)) msgs.push('Botón 2: completa el texto y la URL; si falta uno, Discord lo omitirá.');
     if (hasBtn) {
       ['inBtn1Url', 'inBtn2Url'].forEach(function (id) {
         var el = $(id);
@@ -1842,6 +1896,21 @@ function setConn(connected, error, verified) {
     var v = String(u || '').trim();
     if (!/^https?:\/\//i.test(v)) return '';
     return v.replace(/"/g, '%22');
+  }
+
+  /* La preview solo puede mostrar URLs reales; los nombres de asset de
+     Discord se resuelven en el gateway y no son rutas de navegador. */
+  function safePreviewImageUrl(u) {
+    var v = String(u || '').trim();
+    if (/^https:\/\//i.test(v)) {
+      try {
+        var parsed = new URL(v, location.origin);
+        if (parsed.origin === location.origin && /^\/uploads\//.test(parsed.pathname)) return parsed.href;
+      } catch (e) { return ''; }
+      return '/api/preview-image?url=' + encodeURIComponent(v);
+    }
+    if (/^\/[^/]/.test(v)) return v;
+    return '';
   }
 
   /* Pone (o quita) el src de una imagen según haya URL o no. */
@@ -2004,22 +2073,31 @@ function setConn(connected, error, verified) {
     /* Imagen grande con su texto de hover. */
     var lw = $('dfx-large-wrap');
     if (a.largeImageUrl) {
-      var large = setImg('dfx-large-image', a.largeImageUrl);
-      large.onerror = function () { lw.classList.remove('has-img'); lw.removeAttribute('data-hover'); };
+      var large = $('dfx-large-image');
+      large.onerror = function () {
+        lw.classList.remove('has-img');
+        lw.classList.add('image-error');
+        lw.removeAttribute('data-hover');
+        large.hidden = true;
+      };
+      large.onload = function () { lw.classList.remove('image-error'); };
+      setImg('dfx-large-image', safePreviewImageUrl(a.largeImageUrl));
       lw.classList.add('has-img');
       if (a.largeImageText) lw.setAttribute('data-hover', a.largeImageText);
       else lw.removeAttribute('data-hover');
     } else {
       setImg('dfx-large-image', '');
       lw.classList.remove('has-img');
+      lw.classList.remove('image-error');
       lw.removeAttribute('data-hover');
     }
 
     /* Icono pequeño superpuesto. */
     var sw = $('dfx-small-wrap');
     if (a.smallImageUrl) {
-      var small = setImg('dfx-small-image', a.smallImageUrl);
-      small.onerror = function () { sw.classList.remove('has-img'); sw.removeAttribute('data-hover'); };
+      var small = $('dfx-small-image');
+      small.onerror = function () { sw.classList.remove('has-img'); sw.removeAttribute('data-hover'); small.hidden = true; };
+      setImg('dfx-small-image', safePreviewImageUrl(a.smallImageUrl));
       sw.classList.add('has-img');
       if (a.smallImageText) sw.setAttribute('data-hover', a.smallImageText);
       else sw.removeAttribute('data-hover');
@@ -2084,23 +2162,16 @@ function setConn(connected, error, verified) {
 
   function renderPreview() {
     if (!$('inEnabled').checked) {
-      state.cardActivity = null;
+      renderCard({});
       $('dfx-app-name').textContent = 'RPC personalizado desactivado';
-      $('dfx-details').textContent = '';
-      $('dfx-state').textContent = '';
-      $('dfx-party').textContent = '';
-      $('dfx-party').classList.add('empty');
-      $('dfx-twitch').hidden = true;
-      $('dfx-button-group').innerHTML = '';
-      $('dfx-timer').hidden = true;
-      $('dfx-timer').textContent = '';
       return;
     }
     renderCard(readAdvanced());
   }
 
   function renderRpc(rpcState) {
-    if (rpcState && rpcState.activity) renderCard(rpcState.activity);
+    if (formDirty) renderPreview();
+    else if (rpcState && rpcState.activity) renderCard(rpcState.activity);
     else renderPreview();
     /* El estado real de la conexión se refleja en el punto del avatar. */
     if (rpcState && rpcState.connected) setPresence('online');
@@ -2194,12 +2265,18 @@ function setConn(connected, error, verified) {
   }
 
   function loadProfile(name) {
+    if (typeof name !== 'string' || !name.trim() || name === 'undefined' || name === 'null') {
+      lsSet(LS.current, null);
+      renderProfiles();
+      return;
+    }
     var list = loadProfiles();
     var p = null;
     for (var i = 0; i < list.length; i++) if ((list[i].profileName || list[i].name) === name) { p = list[i]; break; }
     if (!p) { toast('No existe el perfil «' + name + '»', 'err'); return; }
     var keepToken = $('inUserToken').value; /* los perfiles no guardan el token */
     fillForm(p);
+    formDirty = true;
     if (keepToken && !p.userToken) $('inUserToken').value = keepToken;
     $('inProfileName').value = name;
     lsSet(LS.current, name);
@@ -2210,6 +2287,13 @@ function setConn(connected, error, verified) {
   }
 
   function deleteProfile(name) {
+    if (typeof name !== 'string' || !name.trim() || name === 'undefined' || name === 'null') {
+      lsSet(LS.current, null);
+      $('inProfileName').value = '';
+      renderProfiles();
+      toast('No hay una plantilla válida seleccionada', 'info');
+      return;
+    }
     var list = loadProfiles().filter(function (p) { return (p.profileName || p.name) !== name; });
     persistProfiles(list);
     if (lsGet(LS.current) === name) {
@@ -2225,6 +2309,11 @@ function setConn(connected, error, verified) {
   function renderProfiles() {
     var list = loadProfiles();
     if (!Array.isArray(list)) list = [];
+    list = list.filter(function (p) { return p && typeof p === 'object' && String(p.profileName || p.name || '').trim(); });
+    var storedCurrent = lsGet(LS.current, null);
+    var current = typeof storedCurrent === 'string' && storedCurrent !== 'undefined' && storedCurrent !== 'null'
+      ? storedCurrent : null;
+    if (storedCurrent !== current) lsSet(LS.current, null);
     var box = $('profilesList');
     if (!box) return;
     $('profileCount').textContent = list.length + (list.length === 1 ? ' plantilla' : ' plantillas');
@@ -2232,7 +2321,6 @@ function setConn(connected, error, verified) {
       box.innerHTML = '<div class="empty" style="width:100%">Aún no hay plantillas. Configura el RPC y guárdala aquí.</div>';
       return;
     }
-    var current = lsGet(LS.current, null);
     var html = '';
     for (var i = 0; i < list.length; i++) {
       var p = list[i] || {};
@@ -2426,7 +2514,10 @@ function setConn(connected, error, verified) {
     }
     emitAck('applyProfileStatus', { text: text, emoji: emoji })
       .then(function (res) {
-        if (res && res.ok) toast('Custom Status de perfil aplicado', 'ok');
+        if (res && res.ok) {
+          renderCustomStatusLine();
+          toast('Custom Status de perfil aplicado', 'ok');
+        }
         else toast((res && res.error) || 'No se pudo aplicar el Custom Status', 'err');
       })
       .catch(function (err) { toast(err.message, 'err'); });
@@ -2518,6 +2609,7 @@ function setConn(connected, error, verified) {
       emitAck('updatePresence', data)
         .then(function (res) {
           if (res && res.ok) {
+            formDirty = false;
             toast('Presencia actualizada en Discord', 'ok');
             if (res.warnings && res.warnings.length) {
               res.warnings.forEach(function (w) { toast(w, 'info'); });
@@ -2534,22 +2626,25 @@ function setConn(connected, error, verified) {
     // Preview en tiempo real: cualquier cambio de campo refresca la tarjeta
     var previewEls = $('presenceForm').querySelectorAll('input, select');
     for (var i = 0; i < previewEls.length; i++) {
-      previewEls[i].addEventListener('input', renderPreview);
+      previewEls[i].addEventListener('input', function () { formDirty = true; renderPreview(); });
       previewEls[i].addEventListener('input', saveFormSoon);
       previewEls[i].addEventListener('input', updateBtnWarning);
     }
     $('inType').addEventListener('change', function () {
+      formDirty = true;
       toggleStreamField();
       updateBtnWarning();
       renderPreview();
       saveFormSoon();
     });
     $('inPlatform').addEventListener('change', function () {
+      formDirty = true;
       updateBtnWarning();
       renderPreview();
       saveFormSoon();
     });
     $('inEnabled').addEventListener('change', function () {
+      formDirty = true;
       setFormEnabled($('inEnabled').checked);
       renderPreview();
       saveFormSoon();

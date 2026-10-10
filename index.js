@@ -70,6 +70,25 @@ app.use(express.static(path.join(__dirname, 'public'), {
   },
 }));
 
+/* Proxy de preview: algunos CDNs bloquean imágenes embebidas (hotlink),
+   aunque la URL sea válida. Solo acepta HTTPS y reutiliza el mismo
+   validador/límite de tamaño que usa el registro de Art Assets. */
+app.get('/api/preview-image', async (req, res) => {
+  try {
+    const source = String(req.query.url || '').trim();
+    if (!/^https:\/\//i.test(source)) {
+      return res.status(400).json({ ok: false, error: 'La preview solo admite URLs HTTPS.' });
+    }
+    const image = await loadImageBuffer(source, { uploadDir: UPLOAD_DIR });
+    if (!image) return res.status(404).end();
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+    res.type(image.mime).send(image.buffer);
+  } catch (err) {
+    log.warn(`Preview de imagen no disponible: ${err.message}`);
+    res.status(502).json({ ok: false, error: 'No se pudo descargar la imagen para la preview.' });
+  }
+});
+
 /* ============================================================
    Subida de imágenes locales (multer → public/uploads)
    ============================================================ */
@@ -423,6 +442,17 @@ function validateActivity(a) {
   }
 
   const platform = PLATFORM_MAP[String(a.platform || '').toLowerCase()];
+  const buttonPairs = [
+    ['button1Text', 'button1Url', '1'],
+    ['button2Text', 'button2Url', '2'],
+  ];
+  for (const [textKey, urlKey, label] of buttonPairs) {
+    const hasText = Boolean(String(a[textKey] || '').trim());
+    const hasUrl = Boolean(normalizeUrl(a[urlKey], false));
+    if (hasText !== hasUrl) {
+      warnings.push(`Botón ${label}: completa el texto y la URL; si falta uno, Discord lo omitirá.`);
+    }
+  }
   const hasBtn = (a.button1Text && normalizeUrl(a.button1Url, false)) ||
                  (a.button2Text && normalizeUrl(a.button2Url, false));
   if (hasBtn) {
