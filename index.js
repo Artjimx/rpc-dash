@@ -661,7 +661,7 @@ async function registerImageAsset(client, value, appId, slot) {
 
   /* Ya subido: se reutiliza el nombre, sin red. */
   const hit = registry[key];
-  if (hit && hit.name) return hit.name;
+  if (hit && (hit.id || hit.name)) return hit.id || hit.name;
 
   const token = connectedToken || USER_TOKEN_ENV;
   const started = Date.now();
@@ -721,7 +721,7 @@ async function registerImageAsset(client, value, appId, slot) {
     assetSync = { running: false, at: Date.now(), lastError: null,
       items: { ...assetSync.items, [slot]: 'listo' } };
     emitAssetSync();
-    return asset.name;
+    return asset.id || asset.name;
   } catch (err) {
     const message = String((err && err.message) || err);
     log.error(`No se pudo subir la imagen a la aplicacion ${appId}: ${message}`);
@@ -742,8 +742,27 @@ async function resolveRichImage(client, value, appId, slot = 'large') {
   if (v.startsWith('external/')) return 'mp:' + v;
 
   /* Nombre de asset limpio (ej: "bigimage", "logo_2", "icon.main").
-     Se acepta tal cual: Discord lo resuelve contra el Developer Portal. */
-  if (CLEAN_ASSET_KEY.test(v)) return v;
+     Discord realmente espera el ID numérico del asset. Se intenta resolver
+     también un nombre escrito manualmente para no romper configuraciones
+     antiguas que guardaban "gun" o "rpc_lg_…". */
+  if (CLEAN_ASSET_KEY.test(v)) {
+    if (isValidAppId(appId)) {
+      const registry = loadSettings().assetRegistry || {};
+      const cached = Object.values(registry).find((asset) => asset && asset.appId === String(appId) && asset.name === v);
+      if (cached && cached.id) return String(cached.id);
+      try {
+        const token = connectedToken || USER_TOKEN_ENV || loadSettings().userToken;
+        if (token) {
+          const assets = await listApplicationAssets({ token, appId: String(appId).trim() });
+          const found = assets.find((asset) => asset.name === v);
+          if (found && found.id) return found.id;
+        }
+      } catch (err) {
+        log.warn(`No se pudo resolver el nombre del asset "${v}": ${err.message}`);
+      }
+    }
+    return v;
+  }
 
   if (/^https?:\/\//i.test(v)) {
     /* http:// (sin TLS) Discord lo rechaza → se omite el asset en vez

@@ -1522,6 +1522,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   /* ---------------- Registro automático de imágenes ---------------- */
   var ASSET_SLOT_HINT = { large: 'assetHintLarge', small: 'assetHintSmall' };
   var assetBaseText = {};
+  var assetPreviewIds = {};
 
   function assetSlotValue(slot) {
     var input = $(slot === 'small' ? 'inSmallUrl' : 'inLargeUrl');
@@ -1576,32 +1577,38 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         select.innerHTML = '<option value="">Selecciona un asset existente…</option>';
         if (gallery) gallery.innerHTML = '';
         assets.forEach(function (asset) {
+          if (asset.id) assetPreviewIds[asset.name] = asset.id;
           var option = document.createElement('option');
-          option.value = asset.name;
+          /* Discord RPC necesita el ID numérico; el nombre se queda solo
+             como etiqueta legible para el usuario. */
+          option.value = asset.id || asset.name;
           option.textContent = asset.name + (asset.id ? ' · ' + asset.id : '');
           select.appendChild(option);
           if (gallery) {
             var card = document.createElement('button');
             card.type = 'button';
             card.className = 'asset-card';
-            card.dataset.assetName = asset.name;
+            card.dataset.assetName = asset.id || asset.name;
             var img = document.createElement('img');
             img.alt = '';
             img.loading = 'lazy';
-            img.src = '/api/application-asset-preview?appId=' + encodeURIComponent(appId) + '&name=' + encodeURIComponent(asset.name);
+            img.src = '/api/application-asset-preview?appId=' + encodeURIComponent(appId) + '&name=' + encodeURIComponent(asset.id || asset.name);
             var label = document.createElement('span');
             label.textContent = asset.name;
             card.appendChild(img);
             card.appendChild(label);
             card.addEventListener('click', function () {
-              select.value = asset.name;
+              select.value = asset.id || asset.name;
               select.dispatchEvent(new Event('change', { bubbles: true }));
             });
             gallery.appendChild(card);
           }
         });
         var current = assetSlotValue(slot);
-        if (assets.some(function (asset) { return asset.name === current; })) select.value = current;
+        if (assets.some(function (asset) { return asset.id === current || asset.name === current; })) {
+          var currentAsset = assets.find(function (asset) { return asset.id === current || asset.name === current; });
+          select.value = currentAsset.id || currentAsset.name;
+        }
         if (gallery) Array.prototype.forEach.call(gallery.querySelectorAll('.asset-card'), function (card) {
           card.classList.toggle('selected', card.dataset.assetName === select.value);
         });
@@ -2047,7 +2054,8 @@ function setConn(connected, error, verified) {
     if (/^[A-Za-z0-9_.-]{1,128}$/.test(v)) {
       var appId = String(($('inAppId') && $('inAppId').value) || state.settings.applicationId || '').trim();
       if (/^[0-9]{17,20}$/.test(appId)) {
-        return '/api/application-asset-preview?appId=' + encodeURIComponent(appId) + '&name=' + encodeURIComponent(v);
+        var assetId = assetPreviewIds[v] || v;
+        return '/api/application-asset-preview?appId=' + encodeURIComponent(appId) + '&name=' + encodeURIComponent(assetId);
       }
     }
     if (/^\/[^/]/.test(v)) return v;
