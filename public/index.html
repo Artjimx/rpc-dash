@@ -1105,7 +1105,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
      ============================================================ */
   var CROP_MIN = 512;
   var crop = {
-    open: false, file: null, img: null, slot: 'large', urlId: '', btnId: '', input: null,
+    open: false, busy: false, file: null, img: null, slot: 'large', urlId: '', btnId: '', input: null,
     sel: { x: 0, y: 0, w: 0, h: 0 }, view: { scale: 1, w: 0, h: 0 }, drag: null,
   };
 
@@ -1331,6 +1331,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   }
 
   function cropClose() {
+    if (crop.busy) return;
     crop.open = false;
     crop.drag = null;
     crop.img = null;
@@ -1342,6 +1343,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   /* Dibuja el recorte elegido y lo sube por la ruta que ya existía,
      de modo que el asset se registra igual que una imagen sin recortar. */
   function cropApply() {
+    if (crop.busy) return;
     if (!crop.img || !crop.sel.w) { cropClose(); return; }
     var scale = crop.view.scale;
     var sx = crop.sel.x / scale;
@@ -1368,20 +1370,39 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     var btn = crop.btnId ? $(crop.btnId) : null;
     var urlId = crop.urlId;
     var oldText = btn ? btn.textContent : '';
+    crop.busy = true;
     if (btn) { btn.disabled = true; btn.textContent = 'Subiendo…'; }
 
-    canvas.toBlob(function (blob) {
+    function finish(ok) {
+      crop.busy = false;
+      if (btn) { btn.disabled = false; btn.textContent = oldText; }
+      if (ok) cropClose();
+    }
+
+    function sendBlob(blob) {
       if (!blob) {
-        if (btn) { btn.disabled = false; btn.textContent = oldText; }
+        finish(false);
         toast('El navegador no pudo generar la imagen recortada', 'err');
         return;
       }
       var name = (crop.file && crop.file.name ? crop.file.name.replace(/\.[^.]+$/, '') : 'recorte') + '-recortada.png';
-      uploadBlob(blob, name, urlId, btnId, function () {
-        if (btn) { btn.disabled = false; btn.textContent = oldText; }
-        cropClose();
-      });
-    }, 'image/png');
+      uploadBlob(blob, name, urlId, crop.btnId, finish);
+    }
+
+    try {
+      if (typeof canvas.toBlob === 'function') {
+        canvas.toBlob(sendBlob, 'image/png');
+      } else {
+        var data = canvas.toDataURL('image/png');
+        var binary = atob(data.split(',')[1]);
+        var bytes = new Uint8Array(binary.length);
+        for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        sendBlob(new Blob([bytes], { type: 'image/png' }));
+      }
+    } catch (err) {
+      finish(false);
+      toast('No se pudo preparar el recorte: ' + (err.message || err), 'err');
+    }
   }
 
   function bindCropUi() {
@@ -1432,9 +1453,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         renderPreview();
         saveForm();
         toast('Recorte aplicado: ' + res.j.file, 'ok');
+        if (done) done(true);
       })
-      .catch(function (err) { toast(err.message, 'err'); })
-      .then(function () { if (done) done(); });
+      .catch(function (err) {
+        toast(err.message, 'err');
+        if (done) done(false);
+      });
   }
 
   function doImageUpload(fileId, urlId, btnId) {
