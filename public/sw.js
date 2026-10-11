@@ -15,7 +15,9 @@
    El token vive en el servidor: el service worker nunca lo ve.
    ============================================================ */
 
-const CACHE = 'presence-os-v1';
+/* Versiona la carcasa y valida el HTML online para que un redeploy no quede
+   oculto por una copia vieja del Service Worker. */
+const CACHE = 'presence-os-v2';
 
 /* La carcasa: lo mínimo para pintar la interfaz. */
 const SHELL = [
@@ -49,7 +51,7 @@ function isLive(url) {
   if (url.pathname.startsWith('/oauth2/')) return true;
   if (url.pathname.startsWith('/socket.io/')) return true;
   if (url.pathname.startsWith('/uploads/')) return true;
-  if (url.pathname === '/health' || url.pathname === '/') return url.search.length > 0;
+  if (url.pathname === '/health') return true;
   return false;
 }
 
@@ -63,6 +65,24 @@ self.addEventListener('fetch', (event) => {
   try { url = new URL(req.url); } catch { return; }
 
   if (url.origin !== self.location.origin) return;
+
+  /* El HTML de entrada debe venir primero del hosting. Si la red falla,
+     conserva el fallback offline de la carcasa. */
+  if (url.pathname === '/' || url.pathname === '/index.html') {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            event.waitUntil(caches.open(CACHE).then((c) => c.put(req, copy)));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req).then((hit) => hit || caches.match('/index.html'))),
+    );
+    return;
+  }
+
   if (isLive(url)) return;
 
   event.respondWith(
