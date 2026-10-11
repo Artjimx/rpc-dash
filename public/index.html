@@ -399,6 +399,12 @@ body{
 .asset-picker{display:flex;align-items:center;gap:8px;width:100%;margin-top:8px;flex-wrap:wrap}
 .asset-picker select{flex:1;min-width:220px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--text-1);font:inherit;font-size:11px}
 .asset-picker .btn{padding:9px 13px;font-size:10px}
+.asset-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;width:100%;margin-top:8px}
+.asset-card{display:flex;align-items:center;gap:8px;min-width:0;padding:7px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.035);color:var(--text-2);cursor:pointer;text-align:left;transition:border-color .18s,background .18s,transform .18s}
+.asset-card:hover,.asset-card.selected{border-color:var(--stroke-acc);background:rgba(0,255,255,.08);transform:translateY(-1px)}
+.asset-card img{width:34px;height:34px;flex:none;border-radius:7px;object-fit:cover;background:#111}
+.asset-card span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+.asset-gallery:empty{display:none}
 
 /* ---------- Switch ---------- */
 .switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding:12px 14px;background:rgba(255,255,255,.03);border:1px solid var(--stroke);border-radius:14px}
@@ -752,6 +758,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
             </select>
             <button type="button" class="btn ghost" id="btnLargeAssets">Cargar assets</button>
           </div>
+          <div class="asset-gallery" id="largeAssetGallery" aria-label="Assets grandes disponibles"></div>
         </div>
         </div>
         <div class="field">
@@ -772,6 +779,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
             </select>
             <button type="button" class="btn ghost" id="btnSmallAssets">Cargar assets</button>
           </div>
+          <div class="asset-gallery" id="smallAssetGallery" aria-label="Assets pequeños disponibles"></div>
         </div>
         </div>
         <div class="field">
@@ -1557,6 +1565,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     }
     var button = $(slot === 'small' ? 'btnSmallAssets' : 'btnLargeAssets');
     var select = $(slot === 'small' ? 'smallAssetSelect' : 'largeAssetSelect');
+    var gallery = $(slot === 'small' ? 'smallAssetGallery' : 'largeAssetGallery');
     var oldText = button ? button.textContent : '';
     if (button) { button.disabled = true; button.textContent = 'Cargando…'; }
     fetch('/api/application-assets?appId=' + encodeURIComponent(appId))
@@ -1565,14 +1574,37 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         if (!res.ok || !res.j || !res.j.ok) throw new Error((res.j && res.j.error) || 'No se pudieron consultar los assets');
         var assets = Array.isArray(res.j.assets) ? res.j.assets : [];
         select.innerHTML = '<option value="">Selecciona un asset existente…</option>';
+        if (gallery) gallery.innerHTML = '';
         assets.forEach(function (asset) {
           var option = document.createElement('option');
           option.value = asset.name;
           option.textContent = asset.name + (asset.id ? ' · ' + asset.id : '');
           select.appendChild(option);
+          if (gallery) {
+            var card = document.createElement('button');
+            card.type = 'button';
+            card.className = 'asset-card';
+            card.dataset.assetName = asset.name;
+            var img = document.createElement('img');
+            img.alt = '';
+            img.loading = 'lazy';
+            img.src = '/api/application-asset-preview?appId=' + encodeURIComponent(appId) + '&name=' + encodeURIComponent(asset.name);
+            var label = document.createElement('span');
+            label.textContent = asset.name;
+            card.appendChild(img);
+            card.appendChild(label);
+            card.addEventListener('click', function () {
+              select.value = asset.name;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            gallery.appendChild(card);
+          }
         });
         var current = assetSlotValue(slot);
         if (assets.some(function (asset) { return asset.name === current; })) select.value = current;
+        if (gallery) Array.prototype.forEach.call(gallery.querySelectorAll('.asset-card'), function (card) {
+          card.classList.toggle('selected', card.dataset.assetName === select.value);
+        });
         toast(assets.length ? assets.length + ' asset(s) encontrados' : 'La aplicación no tiene assets registrados', assets.length ? 'ok' : 'info');
       })
       .catch(function (err) { toast(err.message, 'err'); })
@@ -1590,6 +1622,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         var input = $(slot === 'small' ? 'inSmallUrl' : 'inLargeUrl');
         input.value = select.value;
         formDirty = true;
+        var gallery = $(slot === 'small' ? 'smallAssetGallery' : 'largeAssetGallery');
+        if (gallery) Array.prototype.forEach.call(gallery.querySelectorAll('.asset-card'), function (card) {
+          card.classList.toggle('selected', card.dataset.assetName === select.value);
+        });
         renderPreview();
         saveForm();
         refreshAssetHints();
@@ -1693,6 +1729,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
       if (!formDirty) {
         if (savedForm && typeof savedForm === 'object') fillForm(savedForm);
         else fillSettings(state.settings);
+        /* El App ID del servidor es la fuente de verdad. Evita que un
+           localStorage antiguo mezcle assets de otra aplicación después de
+           crear/cambiar de Discord Application. */
+        if (state.settings && state.settings.applicationId) {
+          $('inAppId').value = state.settings.applicationId;
+        }
         formDirty = false;
       }
     refreshAssetHints();
@@ -1999,6 +2041,14 @@ function setConn(connected, error, verified) {
         if (parsed.origin === location.origin && /^\/uploads\//.test(parsed.pathname)) return parsed.href;
       } catch (e) { return ''; }
       return '/api/preview-image?url=' + encodeURIComponent(v);
+    }
+    /* Un asset de Discord es un nombre, no una URL. Se resuelve mediante el
+       proxy CDN para que la preview sea idéntica a la clave enviada al RPC. */
+    if (/^[A-Za-z0-9_.-]{1,128}$/.test(v)) {
+      var appId = String(($('inAppId') && $('inAppId').value) || state.settings.applicationId || '').trim();
+      if (/^[0-9]{17,20}$/.test(appId)) {
+        return '/api/application-asset-preview?appId=' + encodeURIComponent(appId) + '&name=' + encodeURIComponent(v);
+      }
     }
     if (/^\/[^/]/.test(v)) return v;
     return '';

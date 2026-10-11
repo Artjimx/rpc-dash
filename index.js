@@ -1779,6 +1779,28 @@ app.get('/api/application-assets', async (req, res) => {
   }
 });
 
+/* Preview segura de un asset ya registrado. Discord recibe el nombre del
+   asset, pero el navegador necesita la URL CDN para poder mostrarlo. */
+app.get('/api/application-asset-preview', async (req, res) => {
+  const configuredAppId = String(loadSettings().applicationId || '').trim();
+  const appId = String(req.query.appId || configuredAppId).trim();
+  const name = String(req.query.name || '').trim();
+  if (!isValidAppId(appId) || appId !== configuredAppId || !CLEAN_ASSET_KEY.test(name)) {
+    return res.status(400).end();
+  }
+  try {
+    const cdnUrl = `https://cdn.discordapp.com/app-assets/${appId}/${encodeURIComponent(name)}.png`;
+    const image = await fetch(cdnUrl);
+    if (!image.ok) return res.status(image.status).end();
+    const buffer = Buffer.from(await image.arrayBuffer());
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+    res.type(image.headers.get('content-type') || 'image/png').send(buffer);
+  } catch (err) {
+    log.warn(`No se pudo previsualizar el asset ${name}: ${err.message}`);
+    res.status(502).end();
+  }
+});
+
 /* ============================================================
    Perfil real de la cuenta: alimenta el preview pixel-perfect del
    dashboard. NUNCA devuelve el token: solo campos de perfil.
