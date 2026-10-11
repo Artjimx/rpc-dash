@@ -396,6 +396,9 @@ body{
 .upload-row{display:flex;align-items:center;gap:9px;margin-top:8px;flex-wrap:wrap}
 .upload-row .btn{padding:9px 13px;font-size:10px}
 .upload-row .up-hint{font-size:10px;color:var(--text-3);letter-spacing:.03em;line-height:1.35}
+.asset-picker{display:flex;align-items:center;gap:8px;width:100%;margin-top:8px;flex-wrap:wrap}
+.asset-picker select{flex:1;min-width:220px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--text-1);font:inherit;font-size:11px}
+.asset-picker .btn{padding:9px 13px;font-size:10px}
 
 /* ---------- Switch ---------- */
 .switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding:12px 14px;background:rgba(255,255,255,.03);border:1px solid var(--stroke);border-radius:14px}
@@ -743,6 +746,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
             <button type="button" class="btn ghost" id="btnLargeUpload">Elegir y recortar…</button>
             <span class="up-hint" id="assetHintLarge">Pega la URL o elige el archivo: se abre el editor para calibrar el encuadre y la imagen se registra sola en los Art Assets de tu app.</span>
           </div>
+          <div class="asset-picker">
+            <select id="largeAssetSelect" aria-label="Asset grande de la aplicación">
+              <option value="">Selecciona un asset existente…</option>
+            </select>
+            <button type="button" class="btn ghost" id="btnLargeAssets">Cargar assets</button>
+          </div>
         </div>
         </div>
         <div class="field">
@@ -756,6 +765,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
             <input type="file" id="inSmallFile" accept="image/*" hidden>
             <button type="button" class="btn ghost" id="btnSmallUpload">Elegir y recortar…</button>
             <span class="up-hint" id="assetHintSmall">Pega la URL o elige el archivo: se abre el editor para calibrar el encuadre y la imagen se registra sola en los Art Assets de tu app.</span>
+          </div>
+          <div class="asset-picker">
+            <select id="smallAssetSelect" aria-label="Asset pequeño de la aplicación">
+              <option value="">Selecciona un asset existente…</option>
+            </select>
+            <button type="button" class="btn ghost" id="btnSmallAssets">Cargar assets</button>
           </div>
         </div>
         </div>
@@ -1529,6 +1544,57 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
       } else {
         paintAssetHint(slot, 'Valor directo: se enviará tal cual a Discord.', null);
       }
+    });
+  }
+
+  /* Consulta los assets que Discord ya tiene registrados en la aplicación.
+     Solo se reciben nombres/ids; el USER_TOKEN nunca llega al navegador. */
+  function loadApplicationAssets(slot) {
+    var appId = $('inAppId').value.trim();
+    if (!/^[0-9]{17,20}$/.test(appId)) {
+      toast('Primero indica un Application ID válido', 'err');
+      return;
+    }
+    var button = $(slot === 'small' ? 'btnSmallAssets' : 'btnLargeAssets');
+    var select = $(slot === 'small' ? 'smallAssetSelect' : 'largeAssetSelect');
+    var oldText = button ? button.textContent : '';
+    if (button) { button.disabled = true; button.textContent = 'Cargando…'; }
+    fetch('/api/application-assets?appId=' + encodeURIComponent(appId))
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.j || !res.j.ok) throw new Error((res.j && res.j.error) || 'No se pudieron consultar los assets');
+        var assets = Array.isArray(res.j.assets) ? res.j.assets : [];
+        select.innerHTML = '<option value="">Selecciona un asset existente…</option>';
+        assets.forEach(function (asset) {
+          var option = document.createElement('option');
+          option.value = asset.name;
+          option.textContent = asset.name + (asset.id ? ' · ' + asset.id : '');
+          select.appendChild(option);
+        });
+        var current = assetSlotValue(slot);
+        if (assets.some(function (asset) { return asset.name === current; })) select.value = current;
+        toast(assets.length ? assets.length + ' asset(s) encontrados' : 'La aplicación no tiene assets registrados', assets.length ? 'ok' : 'info');
+      })
+      .catch(function (err) { toast(err.message, 'err'); })
+      .then(function () {
+        if (button) { button.disabled = false; button.textContent = oldText; }
+      });
+  }
+
+  function bindAssetPickers() {
+    [['large', 'largeAssetSelect', 'btnLargeAssets'], ['small', 'smallAssetSelect', 'btnSmallAssets']].forEach(function (cfg) {
+      var slot = cfg[0], select = $(cfg[1]), button = $(cfg[2]);
+      if (button) button.addEventListener('click', function () { loadApplicationAssets(slot); });
+      if (select) select.addEventListener('change', function () {
+        if (!select.value) return;
+        var input = $(slot === 'small' ? 'inSmallUrl' : 'inLargeUrl');
+        input.value = select.value;
+        formDirty = true;
+        renderPreview();
+        saveForm();
+        refreshAssetHints();
+        toast('Asset seleccionado: ' + select.value, 'ok');
+      });
     });
   }
 
@@ -2628,6 +2694,7 @@ function setConn(connected, error, verified) {
   function bindEvents() {
     bindImageUploads();
     bindCropUi();
+    bindAssetPickers();
     ['inAppId', 'inLargeUrl', 'inSmallUrl'].forEach(function (id) {
       var el = $(id);
       if (el) { el.addEventListener('input', refreshAssetHints); el.addEventListener('change', refreshAssetHints); }

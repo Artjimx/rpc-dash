@@ -334,6 +334,33 @@ export async function uploadApplicationAsset({ token, appId, name, buffer, mime,
     : { id: String(created.id || ''), name: finalName };
 }
 
+/** Devuelve los Art Assets existentes de una aplicación, sin exponer el token. */
+export async function listApplicationAssets({ token, appId }) {
+  if (!token) throw new Error('no hay USER_TOKEN configurado');
+  if (!isSnowflake(appId)) throw new Error('el Application ID no tiene un formato válido');
+
+  const res = await fetch(`${API_BASE}/oauth2/applications/${appId}/assets`, {
+    headers: { Authorization: token },
+  });
+  const text = await res.text();
+  let payload = null;
+  if (text) {
+    try { payload = JSON.parse(text); } catch { payload = null; }
+  }
+  if (!res.ok) throw new Error(friendlyError(res.status, payload));
+
+  const list = Array.isArray(payload)
+    ? payload
+    : (payload && Array.isArray(payload.assets) ? payload.assets : []);
+  return list
+    .filter((asset) => asset && typeof asset === 'object' && asset.name)
+    .map((asset) => ({
+      id: String(asset.id || ''),
+      name: String(asset.name),
+      type: Number(asset.type || 1),
+    }));
+}
+
 /* Borra el asset anterior cuando se reemplaza la imagen. Si falla no
    pasa nada: solo dejaría un asset huérfano en el Developer Portal. */
 export async function deleteApplicationAsset({ token, appId, assetId }) {

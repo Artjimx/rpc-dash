@@ -37,6 +37,7 @@ import {
   buildAssetName,
   loadImageBuffer,
   uploadApplicationAsset,
+  listApplicationAssets,
   deleteApplicationAsset,
   IDEAL_ASSET_BYTES,
 } from './discordAssets.js';
@@ -1751,6 +1752,31 @@ app.get('/api/status', (req, res) => {
     profileRotation: getProfileRotationState(),
     profile: getCachedProfile(),
   });
+});
+
+/* Lista los assets reales de la aplicación para que el dashboard pueda
+   seleccionar la clave exacta que Discord espera en large_image/small_image.
+   El token nunca sale del servidor. */
+app.get('/api/application-assets', async (req, res) => {
+  const configuredAppId = String(loadSettings().applicationId || '').trim();
+  const appId = String(req.query.appId || configuredAppId).trim();
+  if (!isValidAppId(appId)) {
+    return res.status(400).json({ ok: false, error: 'Indica un Application ID válido.' });
+  }
+  if (!configuredAppId || appId !== configuredAppId) {
+    return res.status(403).json({ ok: false, error: 'El Application ID debe coincidir con el configurado en esta dashboard.' });
+  }
+  const token = connectedToken || USER_TOKEN_ENV || loadSettings().userToken;
+  if (!token) {
+    return res.status(401).json({ ok: false, error: 'Conecta el RPC o configura el USER_TOKEN para consultar los assets.' });
+  }
+  try {
+    const assets = await listApplicationAssets({ token, appId });
+    return res.json({ ok: true, appId, assets });
+  } catch (err) {
+    log.warn(`No se pudieron listar los assets de ${appId}: ${err.message}`);
+    return res.status(502).json({ ok: false, error: err.message || 'No se pudieron consultar los assets.' });
+  }
 });
 
 /* ============================================================
