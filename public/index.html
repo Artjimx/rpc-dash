@@ -948,11 +948,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
             <div class="dfx-activity-content">
               <div class="dfx-asset-wrapper">
                 <div class="dfx-large-wrap" id="dfx-large-wrap">
-                  <img class="dfx-large-image" id="dfx-large-image" alt="" hidden>
+                  <img class="dfx-large-image" id="dfx-large-image" alt="" loading="eager" referrerpolicy="no-referrer" hidden>
                   <div class="dfx-large-ph" id="dfx-large-ph">P</div>
                 </div>
                 <div class="dfx-small-wrap" id="dfx-small-wrap">
-                  <img class="dfx-small-image" id="dfx-small-image" alt="" hidden>
+                    <img class="dfx-small-image" id="dfx-small-image" alt="" loading="eager" referrerpolicy="no-referrer" hidden>
                 </div>
               </div>
 
@@ -1918,9 +1918,15 @@ function setConn(connected, error, verified) {
   function setImg(id, url) {
     var el = $(id);
     if (!el) return null;
-    if (url) { el.src = url; el.hidden = false; return el; }
+    if (url) {
+      el.hidden = false;
+      el.style.display = 'block';
+      el.src = url;
+      return el;
+    }
     el.removeAttribute('src');
     el.hidden = true;
+    el.style.display = 'none';
     return el;
   }
 
@@ -2075,15 +2081,27 @@ function setConn(connected, error, verified) {
     var lw = $('dfx-large-wrap');
     if (a.largeImageUrl) {
       var large = $('dfx-large-image');
+      var largeUrl = safePreviewImageUrl(a.largeImageUrl);
+      var largeRetry = false;
       large.onerror = function () {
+        if (largeUrl && !largeRetry) {
+          largeRetry = true;
+          large.src = largeUrl + (largeUrl.indexOf('?') >= 0 ? '&' : '?') + 'retry=1';
+          return;
+        }
         lw.classList.remove('has-img');
         lw.classList.add('image-error');
         lw.removeAttribute('data-hover');
         large.hidden = true;
+        large.style.display = 'none';
       };
-      large.onload = function () { lw.classList.remove('image-error'); };
-      setImg('dfx-large-image', safePreviewImageUrl(a.largeImageUrl));
-      lw.classList.add('has-img');
+      large.onload = function () {
+        lw.classList.remove('image-error');
+        lw.classList.add('has-img');
+      };
+      lw.classList.remove('has-img');
+      lw.classList.remove('image-error');
+      setImg('dfx-large-image', largeUrl);
       if (a.largeImageText) lw.setAttribute('data-hover', a.largeImageText);
       else lw.removeAttribute('data-hover');
     } else {
@@ -2097,9 +2115,11 @@ function setConn(connected, error, verified) {
     var sw = $('dfx-small-wrap');
     if (a.smallImageUrl) {
       var small = $('dfx-small-image');
-      small.onerror = function () { sw.classList.remove('has-img'); sw.removeAttribute('data-hover'); small.hidden = true; };
-      setImg('dfx-small-image', safePreviewImageUrl(a.smallImageUrl));
-      sw.classList.add('has-img');
+      var smallUrl = safePreviewImageUrl(a.smallImageUrl);
+      small.onerror = function () { sw.classList.remove('has-img'); sw.removeAttribute('data-hover'); small.hidden = true; small.style.display = 'none'; };
+      small.onload = function () { sw.classList.add('has-img'); };
+      sw.classList.remove('has-img');
+      setImg('dfx-small-image', smallUrl);
       if (a.smallImageText) sw.setAttribute('data-hover', a.smallImageText);
       else sw.removeAttribute('data-hover');
     } else {
