@@ -151,7 +151,7 @@ function localUploadPath(value, uploadDir) {
 }
 
 /**
- * Obtiene el binario de una imagen desde una URL https o desde una
+ * Obtiene el binario de una imagen desde una URL http(s) o desde una
  * subida local del dashboard.
  * @returns {Promise<{buffer: Buffer, mime: string, filename: string} | null>}
  */
@@ -173,8 +173,8 @@ export async function loadImageBuffer(value, { uploadDir } = {}) {
     }
   }
 
-  if (!/^https:\/\//i.test(v)) {
-    throw new Error('solo se admiten URLs https o imágenes subidas desde el dashboard');
+  if (!/^https?:\/\//i.test(v)) {
+    throw new Error('solo se admiten URLs http(s) o imágenes subidas desde el dashboard');
   }
 
   const ctrl = new AbortController();

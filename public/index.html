@@ -746,11 +746,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         </div>
 <div class="field">
           <span class="label">Large Image URL</span>
-          <input type="text" id="inLargeUrl" placeholder="URL https, nombre de asset (ej: bigimage) o App ID">
+          <input type="text" id="inLargeUrl" placeholder="URL directa http(s), nombre de asset o App ID">
           <div class="upload-row">
             <input type="file" id="inLargeFile" accept="image/*" hidden>
             <button type="button" class="btn ghost" id="btnLargeUpload">Elegir y recortar…</button>
-            <span class="up-hint" id="assetHintLarge">Pega la URL o elige el archivo: se abre el editor para calibrar el encuadre y la imagen se registra sola en los Art Assets de tu app.</span>
+            <span class="up-hint" id="assetHintLarge">Pega una URL directa http(s) o elige un archivo; con un Application ID válido se registra en los Art Assets de tu app.</span>
           </div>
           <div class="asset-picker">
             <select id="largeAssetSelect" aria-label="Asset grande de la aplicación">
@@ -767,11 +767,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         </div>
 <div class="field">
           <span class="label">Small Image URL</span>
-          <input type="text" id="inSmallUrl" placeholder="URL https, nombre de asset (ej: smallicon) o App ID">
+          <input type="text" id="inSmallUrl" placeholder="URL directa http(s), nombre de asset o App ID">
           <div class="upload-row">
             <input type="file" id="inSmallFile" accept="image/*" hidden>
             <button type="button" class="btn ghost" id="btnSmallUpload">Elegir y recortar…</button>
-            <span class="up-hint" id="assetHintSmall">Pega la URL o elige el archivo: se abre el editor para calibrar el encuadre y la imagen se registra sola en los Art Assets de tu app.</span>
+            <span class="up-hint" id="assetHintSmall">Pega una URL directa http(s) o elige un archivo; con un Application ID válido se registra en los Art Assets de tu app.</span>
           </div>
           <div class="asset-picker">
             <select id="smallAssetSelect" aria-label="Asset pequeño de la aplicación">
@@ -1543,7 +1543,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   function refreshAssetHints() {
     ['large', 'small'].forEach(function (slot) {
       var value = assetSlotValue(slot);
-      if (!value) { paintAssetHint(slot, 'Pega la URL o sube el archivo: con un Application ID válido la imagen se registra sola en los Art Assets de tu app.'); return; }
+      if (!value) { paintAssetHint(slot, 'Pega una URL directa o sube el archivo: con un Application ID válido la imagen se registra en los Art Assets de tu app.'); return; }
       var isUrl = /^https?:\/\//i.test(value);
       var appId = $('inAppId').value.trim();
       if (isUrl && !/^[0-9]{17,20}$/.test(appId)) {

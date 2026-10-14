@@ -8,6 +8,7 @@ Dashboard web para Rich Presence de Discord con `USER_TOKEN` — Express + Socke
 - Plantillas RPC guardadas en el navegador y rotación automática
 - Rotación de frases en Details/State sobre tu actividad base
 - Subida de imágenes locales (jpg, jpeg, png, gif, webp, avif — máx. 25 MB) o pegado con `Ctrl+V`
+- Registro automático de imágenes desde URLs directas HTTP(S) o archivos subidos; requiere un Application ID válido y las URLs deben entregar la imagen directamente (hasta 10 MB).
 - Cloud-ready: usa `process.env.PORT` y confía en proxies inversos
 
 ## Puesta en marcha

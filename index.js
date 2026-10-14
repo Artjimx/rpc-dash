@@ -482,7 +482,7 @@ function toMs(v) {
    - Asset ID (17-20 dígitos)  -> se deja tal cual
    - mp: / youtube: / spotify: / twitch:  -> proxy directo
    - external/…                -> media proxy (mp:external/…)
-   - URL https://…  -> se sube sola a los Art Assets de la
+   - URL http(s)://… -> se sube sola a los Art Assets de la
      aplicación (incluidas las de cdn/media.discordapp.net) y se
      devuelve su nombre. Si eso falla se intenta el registro oficial
      con RichPresence.getExternal (cacheado) y, en último caso, el
@@ -663,7 +663,7 @@ async function registerImageAsset(client, value, appId, slot) {
   const hit = registry[key];
   if (hit && (hit.id || hit.name)) return hit.id || hit.name;
 
-  const token = connectedToken || USER_TOKEN_ENV;
+  const token = connectedToken || USER_TOKEN_ENV || loadSettings().userToken;
   const started = Date.now();
   assetSync = { ...assetSync, running: true, at: started, lastError: null,
     items: { ...assetSync.items, [slot]: 'subiendo' } };
@@ -765,18 +765,15 @@ async function resolveRichImage(client, value, appId, slot = 'large') {
   }
 
   if (/^https?:\/\//i.test(v)) {
-    /* http:// (sin TLS) Discord lo rechaza → se omite el asset en vez
-       de arriesgar el "?" que rompe el RPC. */
-    if (/^http:\/\//i.test(v)) {
-      log.warn(`Imagen externa http:// no soportada, asset omitido: ${v.slice(0, 80)}`);
-      return null;
-    }
     if (isValidAppId(appId)) {
       /* Camino principal: si hay Application ID, la imagen se sube sola a
-         los Art Assets de esa app y se devuelve su NOMBRE, que es lo que
-         Discord resuelve en large_image / small_image. */
+         los Art Assets de esa app y se devuelve el ID del asset. */
       const registered = await registerImageAsset(client, v, appId, slot);
       if (registered) return registered;
+
+      /* HTTP solo se admite como fuente para registrar el archivo. Nunca se
+         manda como URL directa a Discord si la subida no se pudo completar. */
+      if (/^http:\/\//i.test(v)) return null;
 
       const cached = EXTERNAL_CACHE.get(v);
       if (cached) return cached;
@@ -793,6 +790,9 @@ async function resolveRichImage(client, value, appId, slot = 'large') {
       } catch (e) {
         log.warn(`Registro externo falló (${e.message}) → proxy mp:`);
       }
+    } else if (/^http:\/\//i.test(v)) {
+      log.warn(`La imagen http:// requiere un Application ID válido para registrarse: ${v.slice(0, 80)}`);
+      return null;
     }
     return 'mp:' + v.replace(/^https?:\/\//i, (m) => m.replace('://', '/'));
   }
